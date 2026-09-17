@@ -1,5 +1,6 @@
 """
 🌑 VOID Store Bot - Configurações Centralizadas
+Versão defensiva: aceita variáveis ausentes sem quebrar.
 """
 
 import os
@@ -7,139 +8,160 @@ from dotenv import load_dotenv
 from typing import Optional
 import json
 
-# Carregar variáveis de ambiente
 load_dotenv()
+
+def _get_int(key: str) -> Optional[int]:
+    """Lê variável de ambiente como inteiro, retorna None se ausente ou inválida"""
+    value = os.getenv(key, "").strip()
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+def _get_bool(key: str, default: bool = False) -> bool:
+    """Lê variável de ambiente como booleano"""
+    value = os.getenv(key, "").strip().lower()
+    if not value:
+        return default
+    return value in ("true", "1", "yes")
+
+def _get_str(key: str, default: str = "") -> str:
+    """Lê variável de ambiente como string"""
+    return os.getenv(key, default).strip()
+
 
 class Config:
     """Configurações centralizadas do bot"""
-    
+
     # ====================================
     # DISCORD
     # ====================================
-    DISCORD_TOKEN: str = os.getenv('DISCORD_TOKEN', '')
-    GUILD_ID: Optional[int] = int(os.getenv('GUILD_ID', 0)) if os.getenv('GUILD_ID') else None
-    PREFIX: str = os.getenv('PREFIX', '!')
-    
+    DISCORD_TOKEN: str = _get_str("DISCORD_TOKEN")
+    GUILD_ID: Optional[int] = _get_int("GUILD_ID")
+    PREFIX: str = _get_str("PREFIX", "!")
+
     # ====================================
     # DATABASE
     # ====================================
-    DATABASE_URL: str = os.getenv('DATABASE_URL', 'sqlite:///data/void.db')
-    
+    DATABASE_URL: str = _get_str("DATABASE_URL", "sqlite:///data/void.db")
+
     # ====================================
     # GOOGLE SHEETS
     # ====================================
-    GOOGLE_SHEETS_ENABLED: bool = os.getenv('GOOGLE_SHEETS_ENABLED', 'false').lower() == 'true'
-    GOOGLE_SHEET_ID: str = os.getenv('GOOGLE_SHEET_ID', '')
-    
+    GOOGLE_SHEETS_ENABLED: bool = _get_bool("GOOGLE_SHEETS_ENABLED", False)
+    GOOGLE_SHEET_ID: str = _get_str("GOOGLE_SHEET_ID")
+
     @staticmethod
     def get_google_credentials() -> Optional[dict]:
-        """Retorna as credenciais do Google Sheets"""
-        creds_json = os.getenv('GOOGLE_SERVICE_ACCOUNT_JSON', '')
-        if creds_json:
-            try:
-                return json.loads(creds_json)
-            except json.JSONDecodeError:
-                return None
-        return None
-    
+        """Retorna credenciais do Google Sheets de forma segura"""
+        creds_json = _get_str("GOOGLE_SERVICE_ACCOUNT_JSON")
+        if not creds_json:
+            return None
+        try:
+            return json.loads(creds_json)
+        except json.JSONDecodeError:
+            return None
+
     # ====================================
-    # ROLES - ADMIN & STAFF
+    # ROLES — ADMIN & STAFF
     # ====================================
-    ADMIN_ROLE_ID: Optional[int] = int(os.getenv('ADMIN_ROLE_ID', 0)) if os.getenv('ADMIN_ROLE_ID') else None
-    STAFF_ROLE_ID: Optional[int] = int(os.getenv('STAFF_ROLE_ID', 0)) if os.getenv('STAFF_ROLE_ID') else None
-    
+    ADMIN_ROLE_ID: Optional[int] = _get_int("ADMIN_ROLE_ID")
+    STAFF_ROLE_ID: Optional[int] = _get_int("STAFF_ROLE_ID")
+
     # ====================================
-    # ROLES - VIP & BOOSTER
+    # ROLES — VIP & BOOSTER
     # ====================================
-    VIP_ROLE_ID: Optional[int] = int(os.getenv('VIP_ROLE_ID', 0)) if os.getenv('VIP_ROLE_ID') else None
-    BOOSTER_ROLE_ID: Optional[int] = int(os.getenv('BOOSTER_ROLE_ID', 0)) if os.getenv('BOOSTER_ROLE_ID') else None
-    
+    VIP_ROLE_ID: Optional[int] = _get_int("VIP_ROLE_ID")
+    BOOSTER_ROLE_ID: Optional[int] = _get_int("BOOSTER_ROLE_ID")
+
     # ====================================
-    # ROLES - PROGRESSÃO
+    # ROLES — PROGRESSÃO
     # ====================================
-    STARTER_ROLE_ID: Optional[int] = int(os.getenv('STARTER_ROLE_ID', 0)) if os.getenv('STARTER_ROLE_ID') else None
-    PLUS_ROLE_ID: Optional[int] = int(os.getenv('PLUS_ROLE_ID', 0)) if os.getenv('PLUS_ROLE_ID') else None
-    PREMIUM_ROLE_ID: Optional[int] = int(os.getenv('PREMIUM_ROLE_ID', 0)) if os.getenv('PREMIUM_ROLE_ID') else None
-    SUPREME_ROLE_ID: Optional[int] = int(os.getenv('SUPREME_ROLE_ID', 0)) if os.getenv('SUPREME_ROLE_ID') else None
-    PRESTIGE_ROLE_ID: Optional[int] = int(os.getenv('PRESTIGE_ROLE_ID', 0)) if os.getenv('PRESTIGE_ROLE_ID') else None
-    
+    STARTER_ROLE_ID: Optional[int] = _get_int("STARTER_ROLE_ID")
+    PLUS_ROLE_ID: Optional[int] = _get_int("PLUS_ROLE_ID")
+    PREMIUM_ROLE_ID: Optional[int] = _get_int("PREMIUM_ROLE_ID")
+    SUPREME_ROLE_ID: Optional[int] = _get_int("SUPREME_ROLE_ID")
+    PRESTIGE_ROLE_ID: Optional[int] = _get_int("PRESTIGE_ROLE_ID")
+
     # ====================================
     # TICKETS
     # ====================================
-    TICKET_CATEGORY_ID: Optional[int] = int(os.getenv('TICKET_CATEGORY_ID', 0)) if os.getenv('TICKET_CATEGORY_ID') else None
-    TICKET_TRANSCRIPT_CHANNEL_ID: Optional[int] = int(os.getenv('TICKET_TRANSCRIPT_CHANNEL_ID', 0)) if os.getenv('TICKET_TRANSCRIPT_CHANNEL_ID') else None
-    
+    TICKET_CATEGORY_ID: Optional[int] = _get_int("TICKET_CATEGORY_ID")
+    TICKET_TRANSCRIPT_CHANNEL_ID: Optional[int] = _get_int("TICKET_TRANSCRIPT_CHANNEL_ID")
+
     # ====================================
     # LOGS
     # ====================================
-    LOG_CHANNEL_ID: Optional[int] = int(os.getenv('LOG_CHANNEL_ID', 0)) if os.getenv('LOG_CHANNEL_ID') else None
-    MOD_LOG_CHANNEL_ID: Optional[int] = int(os.getenv('MOD_LOG_CHANNEL_ID', 0)) if os.getenv('MOD_LOG_CHANNEL_ID') else None
-    TICKET_LOG_CHANNEL_ID: Optional[int] = int(os.getenv('TICKET_LOG_CHANNEL_ID', 0)) if os.getenv('TICKET_LOG_CHANNEL_ID') else None
-    ORDER_LOG_CHANNEL_ID: Optional[int] = int(os.getenv('ORDER_LOG_CHANNEL_ID', 0)) if os.getenv('ORDER_LOG_CHANNEL_ID') else None
-    
+    LOG_CHANNEL_ID: Optional[int] = _get_int("LOG_CHANNEL_ID")
+    MOD_LOG_CHANNEL_ID: Optional[int] = _get_int("MOD_LOG_CHANNEL_ID")
+    TICKET_LOG_CHANNEL_ID: Optional[int] = _get_int("TICKET_LOG_CHANNEL_ID")
+    ORDER_LOG_CHANNEL_ID: Optional[int] = _get_int("ORDER_LOG_CHANNEL_ID")
+
     # ====================================
-    # CONFIGURAÇÕES GERAIS
+    # GERAL
     # ====================================
-    ENVIRONMENT: str = os.getenv('ENVIRONMENT', 'production')
-    DEBUG: bool = os.getenv('DEBUG', 'false').lower() == 'true'
-    LOW_STOCK_THRESHOLD: int = int(os.getenv('LOW_STOCK_THRESHOLD', 5))
-    
+    ENVIRONMENT: str = _get_str("ENVIRONMENT", "production")
+    DEBUG: bool = _get_bool("DEBUG", False)
+    LOW_STOCK_THRESHOLD: int = int(_get_str("LOW_STOCK_THRESHOLD", "5") or "5")
+
     # ====================================
     # VALIDAÇÃO
     # ====================================
     @classmethod
     def validate(cls) -> tuple[bool, list[str]]:
-        """Valida as configurações obrigatórias"""
+        """Valida apenas as configurações realmente obrigatórias"""
         errors = []
-        
+
         if not cls.DISCORD_TOKEN:
             errors.append("❌ DISCORD_TOKEN não configurado")
-        
+
         if not cls.GUILD_ID:
             errors.append("❌ GUILD_ID não configurado")
-        
+
         return len(errors) == 0, errors
-    
+
     @classmethod
-    def get_role_tiers(cls) -> dict[str, dict]:
+    def get_role_tiers(cls) -> dict:
         """Retorna os tiers de cargos por compra"""
         return {
-            'STARTER': {
-                'role_id': cls.STARTER_ROLE_ID,
-                'threshold': 25.00,
-                'discount': 3,
-                'name': 'Starter',
-                'emoji': '🟢'
+            "STARTER": {
+                "role_id": cls.STARTER_ROLE_ID,
+                "threshold": 25.00,
+                "discount": 3,
+                "name": "Starter",
+                "emoji": "🟢"
             },
-            'PLUS': {
-                'role_id': cls.PLUS_ROLE_ID,
-                'threshold': 50.00,
-                'discount': 5,
-                'name': 'Plus',
-                'emoji': '🟣'
+            "PLUS": {
+                "role_id": cls.PLUS_ROLE_ID,
+                "threshold": 50.00,
+                "discount": 5,
+                "name": "Plus",
+                "emoji": "🟣"
             },
-            'PREMIUM': {
-                'role_id': cls.PREMIUM_ROLE_ID,
-                'threshold': 100.00,
-                'discount': 7,
-                'name': 'Premium',
-                'emoji': '🔴'
+            "PREMIUM": {
+                "role_id": cls.PREMIUM_ROLE_ID,
+                "threshold": 100.00,
+                "discount": 7,
+                "name": "Premium",
+                "emoji": "🔴"
             },
-            'SUPREME': {
-                'role_id': cls.SUPREME_ROLE_ID,
-                'threshold': 200.00,
-                'discount': 10,
-                'name': 'Supreme',
-                'emoji': '🔵'
+            "SUPREME": {
+                "role_id": cls.SUPREME_ROLE_ID,
+                "threshold": 200.00,
+                "discount": 10,
+                "name": "Supreme",
+                "emoji": "🔵"
             },
-            'PRESTIGE': {
-                'role_id': cls.PRESTIGE_ROLE_ID,
-                'threshold': 350.00,
-                'discount': 15,
-                'name': 'Prestige',
-                'emoji': '🟡'
+            "PRESTIGE": {
+                "role_id": cls.PRESTIGE_ROLE_ID,
+                "threshold": 350.00,
+                "discount": 15,
+                "name": "Prestige",
+                "emoji": "🟡"
             }
         }
 
-# Exportar instância única
+
 config = Config()

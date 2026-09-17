@@ -98,7 +98,8 @@ class VoidBot(commands.Bot):
             "logs",
             "sheets",
             "setup",
-            "help"
+            "help",
+            "error_handler"
         ]
         
         loaded = 0

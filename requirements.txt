@@ -10,3 +10,9 @@ python-dateutil==2.8.2
 pytz==2023.3
 colorlog==6.8.0
 aiohttp==3.9.1
+# Adicione se for usar gerador PIX real:
+# pix==0.3.0
+
+# Ou para QR Code:
+qrcode[pil]==7.4.2
+pillow==10.1.0

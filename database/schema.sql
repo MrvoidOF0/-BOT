@@ -107,3 +107,53 @@ CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_purchases_user ON purchases(user_id);
 CREATE INDEX IF NOT EXISTS idx_logs_type ON logs(log_type);
 CREATE INDEX IF NOT EXISTS idx_logs_user ON logs(user_id);
+
+-- Tabela de canais de compra
+CREATE TABLE IF NOT EXISTS buy_channels (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_id INTEGER UNIQUE NOT NULL,
+    user_id INTEGER NOT NULL,
+    product_id TEXT NOT NULL,
+    product_name TEXT NOT NULL,
+    value REAL NOT NULL,
+    status TEXT DEFAULT 'pending',
+    pix_txid TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(discord_id)
+);
+
+-- Tabela de pagamentos PIX
+CREATE TABLE IF NOT EXISTS pix_payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    txid TEXT UNIQUE NOT NULL,
+    channel_id INTEGER,
+    user_id INTEGER NOT NULL,
+    amount REAL NOT NULL,
+    description TEXT,
+    status TEXT DEFAULT 'pending',
+    approved_by INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    approved_at TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(discord_id)
+);
+
+-- Tabela de serviços
+CREATE TABLE IF NOT EXISTS service_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel_id INTEGER UNIQUE NOT NULL,
+    user_id INTEGER NOT NULL,
+    service_id TEXT NOT NULL,
+    service_name TEXT NOT NULL,
+    status TEXT DEFAULT 'open',
+    details TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(discord_id)
+);
+
+-- Índices
+CREATE INDEX IF NOT EXISTS idx_buy_channels_user ON buy_channels(user_id);
+CREATE INDEX IF NOT EXISTS idx_buy_channels_status ON buy_channels(status);
+CREATE INDEX IF NOT EXISTS idx_pix_payments_txid ON pix_payments(txid);
+CREATE INDEX IF NOT EXISTS idx_service_requests_user ON service_requests(user_id);

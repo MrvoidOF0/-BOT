@@ -23,7 +23,7 @@ class Orders(commands.Cog):
         self.bot = bot
         self.db = bot.db
 
-    @app_commands.command(name="pedido-criar", description="📦 Cria um novo pedido para um cliente")
+    @app_commands.command(name="pedido-manual-criar", description="📦 Cria um pedido manual (sem botão de compra)")
     @app_commands.describe(
         cliente="O cliente que realizou a compra",
         produto="Nome do produto ou serviço",

@@ -1,12 +1,12 @@
 """
-🌑 VOID Store Bot - Sistema de Tickets
+🌑 VOID Store Bot - Sistema de Tickets CORRIGIDO
 """
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 from typing import Optional
-from datetime import datetime
+import asyncio
 
 from database.models import Ticket
 from utils.embeds import VoidEmbeds
@@ -15,239 +15,209 @@ from utils.constants import TicketType, TicketStatus, Emojis
 from utils.logger import logger
 from config import config
 
-class TicketButtons(discord.ui.View):
-    """Botões do painel de tickets"""
-    
-    def __init__(self):
-        super().__init__(timeout=None)
-    
-    @discord.ui.button(
-        label="Compra",
-        style=discord.ButtonStyle.green,
-        emoji=Emojis.PURCHASE,
-        custom_id="ticket:purchase"
-    )
-    async def purchase_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.create_ticket(interaction, TicketType.PURCHASE)
-    
-    @discord.ui.button(
-        label="Serviço",
-        style=discord.ButtonStyle.blurple,
-        emoji=Emojis.SERVICE,
-        custom_id="ticket:service"
-    )
-    async def service_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.create_ticket(interaction, TicketType.SERVICE)
-    
-    @discord.ui.button(
-        label="Suporte",
-        style=discord.ButtonStyle.gray,
-        emoji=Emojis.SUPPORT,
-        custom_id="ticket:support"
-    )
-    async def support_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.create_ticket(interaction, TicketType.SUPPORT)
-    
-    @discord.ui.button(
-        label="Denúncia",
-        style=discord.ButtonStyle.red,
-        emoji=Emojis.REPORT,
-        custom_id="ticket:report"
-    )
-    async def report_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.create_ticket(interaction, TicketType.REPORT)
-    
-    async def create_ticket(self, interaction: discord.Interaction, ticket_type: str):
-        """Cria um ticket"""
-        await interaction.response.defer(ephemeral=True)
-        
-        # Obter cog de tickets
-        cog = interaction.client.get_cog("Tickets")
-        if not cog:
-            await interaction.followup.send(
-                "❌ Sistema de tickets não disponível.",
-                ephemeral=True
-            )
-            return
-        
-        await cog.handle_ticket_creation(interaction, ticket_type)
 
-class TicketControlButtons(discord.ui.View):
-    """Botões de controle dentro do ticket"""
-    
+# ====================================
+# VIEW DE CONTROLE DO TICKET
+# ====================================
+
+class TicketControlView(discord.ui.View):
+    """Botões dentro do ticket — persistentes"""
+
     def __init__(self):
         super().__init__(timeout=None)
-    
+
     @discord.ui.button(
-        label="Fechar",
+        label="Fechar Ticket",
         style=discord.ButtonStyle.red,
-        emoji=Emojis.CLOSE,
-        custom_id="ticket_control:close"
+        emoji="🔒",
+        custom_id="void_ticket:close"
     )
     async def close_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         cog = interaction.client.get_cog("Tickets")
         if cog:
-            await cog.close_ticket_confirm(interaction)
-    
+            await cog.iniciar_fechamento(interaction)
+
     @discord.ui.button(
         label="Assumir",
         style=discord.ButtonStyle.green,
         emoji="🙋",
-        custom_id="ticket_control:claim"
+        custom_id="void_ticket:claim"
     )
     async def claim_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         cog = interaction.client.get_cog("Tickets")
         if cog:
-            await cog.claim_ticket(interaction)
-    
+            await cog.assumir_ticket(interaction)
+
     @discord.ui.button(
         label="Adicionar",
         style=discord.ButtonStyle.blurple,
         emoji="➕",
-        custom_id="ticket_control:add"
+        custom_id="void_ticket:add"
     )
     async def add_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         cog = interaction.client.get_cog("Tickets")
         if cog:
-            await cog.add_user_modal(interaction)
-    
+            await cog.adicionar_usuario(interaction)
+
     @discord.ui.button(
         label="Remover",
         style=discord.ButtonStyle.gray,
         emoji="➖",
-        custom_id="ticket_control:remove"
+        custom_id="void_ticket:remove"
     )
     async def remove_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         cog = interaction.client.get_cog("Tickets")
         if cog:
-            await cog.remove_user_modal(interaction)
+            await cog.remover_usuario(interaction)
 
-class CloseConfirmView(discord.ui.View):
-    """Confirmação de fechamento de ticket"""
-    
+
+class ConfirmarFechamentoView(discord.ui.View):
+    """Confirmação de fechamento"""
+
     def __init__(self):
         super().__init__(timeout=60)
-        self.value = None
-    
-    @discord.ui.button(label="Confirmar", style=discord.ButtonStyle.red, emoji=Emojis.SUCCESS)
-    async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.value = True
+        self.confirmado = False
+
+    @discord.ui.button(label="Confirmar", style=discord.ButtonStyle.red, emoji="✅")
+    async def confirmar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.confirmado = True
         self.stop()
         await interaction.response.defer()
-    
-    @discord.ui.button(label="Cancelar", style=discord.ButtonStyle.gray, emoji=Emojis.ERROR)
-    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.value = False
+
+    @discord.ui.button(label="Cancelar", style=discord.ButtonStyle.gray, emoji="❌")
+    async def cancelar(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.confirmado = False
         self.stop()
         await interaction.response.defer()
+
+
+class TicketPanelView(discord.ui.View):
+    """Painel de abertura de tickets"""
+
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(
+        label="Compra",
+        style=discord.ButtonStyle.green,
+        emoji="🛒",
+        custom_id="void_panel:purchase"
+    )
+    async def purchase(self, interaction: discord.Interaction, button: discord.ui.Button):
+        cog = interaction.client.get_cog("Tickets")
+        if cog:
+            await cog.abrir_ticket(interaction, "purchase")
+
+    @discord.ui.button(
+        label="Suporte",
+        style=discord.ButtonStyle.blurple,
+        emoji="💬",
+        custom_id="void_panel:support"
+    )
+    async def support(self, interaction: discord.Interaction, button: discord.ui.Button):
+        cog = interaction.client.get_cog("Tickets")
+        if cog:
+            await cog.abrir_ticket(interaction, "support")
+
+    @discord.ui.button(
+        label="Denúncia",
+        style=discord.ButtonStyle.red,
+        emoji="🚨",
+        custom_id="void_panel:report"
+    )
+    async def report(self, interaction: discord.Interaction, button: discord.ui.Button):
+        cog = interaction.client.get_cog("Tickets")
+        if cog:
+            await cog.abrir_ticket(interaction, "report")
+
 
 class AddUserModal(discord.ui.Modal, title="Adicionar Usuário"):
-    """Modal para adicionar usuário ao ticket"""
-    
     user_input = discord.ui.TextInput(
-        label="ID ou Menção do Usuário",
-        placeholder="123456789012345678 ou @usuario",
+        label="ID do Usuário",
+        placeholder="Cole o ID numérico do usuário",
         required=True,
-        max_length=100
+        max_length=20
     )
-    
+
     async def on_submit(self, interaction: discord.Interaction):
-        self.user_id = self.user_input.value.strip()
         await interaction.response.defer()
+
 
 class RemoveUserModal(discord.ui.Modal, title="Remover Usuário"):
-    """Modal para remover usuário do ticket"""
-    
     user_input = discord.ui.TextInput(
-        label="ID ou Menção do Usuário",
-        placeholder="123456789012345678 ou @usuario",
+        label="ID do Usuário",
+        placeholder="Cole o ID numérico do usuário",
         required=True,
-        max_length=100
+        max_length=20
     )
-    
+
     async def on_submit(self, interaction: discord.Interaction):
-        self.user_id = self.user_input.value.strip()
         await interaction.response.defer()
 
+
 class Tickets(commands.Cog):
-    """Sistema completo de tickets"""
-    
+    """Sistema de tickets corrigido"""
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = bot.db
-        
-        # Registrar views persistentes
-        self.bot.add_view(TicketButtons())
-        self.bot.add_view(TicketControlButtons())
-    
-    @app_commands.command(name="ticket-panel", description="📋 Cria o painel de tickets")
+        self.bot.add_view(TicketPanelView())
+        self.bot.add_view(TicketControlView())
+
+    @app_commands.command(name="ticket-panel", description="🎫 Cria o painel de atendimento")
     @app_commands.checks.has_permissions(administrator=True)
     async def ticket_panel(self, interaction: discord.Interaction):
-        """Cria o painel de tickets"""
-        
-        # Verificar permissão de admin
-        if not await PermissionChecker.check_interaction_permissions(interaction, require_admin=True):
-            return
-        
-        # Criar embed
-        embed = VoidEmbeds.ticket_panel()
-        
-        # Criar view com botões
-        view = TicketButtons()
-        
-        # Enviar painel
-        await interaction.channel.send(embed=embed, view=view)
-        
-        await interaction.response.send_message(
-            f"{Emojis.SUCCESS} Painel de tickets criado!",
-            ephemeral=True
+        embed = discord.Embed(
+            title="🌑 VOID Store | Central de Atendimento",
+            description=(
+                "Selecione o tipo de atendimento desejado:\n\n"
+                "🛒 **Compra** — Realizar uma compra\n"
+                "💬 **Suporte** — Tirar dúvidas\n"
+                "🚨 **Denúncia** — Reportar um problema"
+            ),
+            color=0x000000
         )
-        
-        logger.info(f"Ticket panel created by {interaction.user}")
-    
-    async def handle_ticket_creation(self, interaction: discord.Interaction, ticket_type: str):
-        """Processa a criação de um ticket"""
-        
-        # Verificar se já tem ticket aberto deste tipo
-        existing_ticket = await self.db.get_user_ticket(interaction.user.id, ticket_type)
-        
-        if existing_ticket:
-            channel = interaction.guild.get_channel(existing_ticket.channel_id)
-            if channel:
+        embed.set_footer(text="🌑 VOID Store")
+
+        await interaction.channel.send(embed=embed, view=TicketPanelView())
+        await interaction.response.send_message("✅ Painel criado!", ephemeral=True)
+
+    async def abrir_ticket(self, interaction: discord.Interaction, tipo: str):
+        """Abre um ticket"""
+
+        await interaction.response.defer(ephemeral=True)
+
+        # Verificar duplicado
+        category_id = config.TICKET_CATEGORY_ID
+        if not category_id:
+            await interaction.followup.send(
+                "❌ Categoria de tickets não configurada. Use `/setup`.",
+                ephemeral=True
+            )
+            return
+
+        category = interaction.guild.get_channel(category_id)
+        if not category:
+            await interaction.followup.send("❌ Categoria não encontrada.", ephemeral=True)
+            return
+
+        # Verificar se já tem ticket do mesmo tipo
+        nome_prefixo = f"ticket-{tipo}-{interaction.user.name}".lower()[:50]
+        for ch in category.text_channels:
+            if ch.name == nome_prefixo:
                 await interaction.followup.send(
-                    f"{Emojis.WARNING} Você já possui um ticket de {TicketType.get_name(ticket_type)} aberto: {channel.mention}",
+                    f"⚠️ Você já tem um ticket aberto: {ch.mention}",
                     ephemeral=True
                 )
                 return
-        
-        # Verificar categoria configurada
-        if not config.TICKET_CATEGORY_ID:
-            await interaction.followup.send(
-                f"{Emojis.ERROR} Categoria de tickets não configurada. Use `/setup` primeiro.",
-                ephemeral=True
-            )
-            return
-        
-        category = interaction.guild.get_channel(config.TICKET_CATEGORY_ID)
-        if not category or not isinstance(category, discord.CategoryChannel):
-            await interaction.followup.send(
-                f"{Emojis.ERROR} Categoria de tickets inválida. Verifique a configuração.",
-                ephemeral=True
-            )
-            return
-        
+
         try:
-            # Criar canal do ticket
-            ticket_name = f"{TicketType.get_emoji(ticket_type)}-{interaction.user.name}".lower()
-            
-            # Configurar permissões
             overwrites = {
                 interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
                 interaction.user: discord.PermissionOverwrite(
                     read_messages=True,
                     send_messages=True,
-                    attach_files=True,
-                    embed_links=True
+                    attach_files=True
                 ),
                 interaction.guild.me: discord.PermissionOverwrite(
                     read_messages=True,
@@ -256,360 +226,211 @@ class Tickets(commands.Cog):
                     manage_permissions=True
                 )
             }
-            
-            # Adicionar staff/admin às permissões
+
             if config.STAFF_ROLE_ID:
-                staff_role = interaction.guild.get_role(config.STAFF_ROLE_ID)
-                if staff_role:
-                    overwrites[staff_role] = discord.PermissionOverwrite(
+                role = interaction.guild.get_role(config.STAFF_ROLE_ID)
+                if role:
+                    overwrites[role] = discord.PermissionOverwrite(
                         read_messages=True,
                         send_messages=True
                     )
-            
-            if config.ADMIN_ROLE_ID:
-                admin_role = interaction.guild.get_role(config.ADMIN_ROLE_ID)
-                if admin_role:
-                    overwrites[admin_role] = discord.PermissionOverwrite(
-                        read_messages=True,
-                        send_messages=True,
-                        manage_channels=True
-                    )
-            
-            # Criar canal
-            ticket_channel = await category.create_text_channel(
-                name=ticket_name,
-                overwrites=overwrites,
-                topic=f"Ticket de {TicketType.get_name(ticket_type)} - {interaction.user}"
+
+            channel = await category.create_text_channel(
+                name=nome_prefixo,
+                overwrites=overwrites
             )
-            
-            # Criar registro no banco
+
+            nomes = {"purchase": "Compra", "support": "Suporte", "report": "Denúncia"}
+            emojis = {"purchase": "🛒", "support": "💬", "report": "🚨"}
+
+            embed = discord.Embed(
+                title=f"{emojis[tipo]} Ticket de {nomes[tipo]}",
+                description=(
+                    f"Olá {interaction.user.mention}!\n\n"
+                    f"Seu ticket foi criado. A equipe responderá em breve.\n"
+                    f"Por favor, descreva sua necessidade."
+                ),
+                color=0x000000,
+                timestamp=discord.utils.utcnow()
+            )
+            embed.set_footer(text="🌑 VOID Store")
+
+            await channel.send(
+                content=f"{interaction.user.mention}",
+                embed=embed,
+                view=TicketControlView()
+            )
+
+            await interaction.followup.send(
+                f"✅ Ticket criado: {channel.mention}",
+                ephemeral=True
+            )
+
+            # Salvar no banco
             ticket = Ticket(
-                channel_id=ticket_channel.id,
+                channel_id=channel.id,
                 creator_id=interaction.user.id,
                 creator_name=str(interaction.user),
-                ticket_type=ticket_type,
-                status=TicketStatus.OPEN
+                ticket_type=tipo,
+                status="open"
             )
-            
             await self.db.create_ticket(ticket)
-            
-            # Criar embed de boas-vindas
-            welcome_embed = VoidEmbeds.ticket_created(ticket_type, interaction.user)
-            
-            # Criar botões de controle
-            control_view = TicketControlButtons()
-            
-            # Enviar mensagem no ticket
-            await ticket_channel.send(
-                content=f"{interaction.user.mention}",
-                embed=welcome_embed,
-                view=control_view
-            )
-            
-            # Confirmar criação
-            await interaction.followup.send(
-                f"{Emojis.SUCCESS} Ticket criado: {ticket_channel.mention}",
-                ephemeral=True
-            )
-            
-            # Log
-            await self.db.create_log(
-                "ticket",
-                interaction.user.id,
-                "created",
-                f"Type: {ticket_type} | Channel: {ticket_channel.id}"
-            )
-            
-            logger.info(f"Ticket created: {ticket_type} by {interaction.user} in {ticket_channel}")
-            
-            # Enviar log se configurado
-            await self.send_ticket_log(
-                interaction.guild,
-                f"{Emojis.TICKET} **Ticket Criado**",
-                f"**Usuário:** {interaction.user.mention}\n"
-                f"**Tipo:** {TicketType.get_name(ticket_type)}\n"
-                f"**Canal:** {ticket_channel.mention}"
-            )
-            
+
         except discord.Forbidden:
             await interaction.followup.send(
-                f"{Emojis.ERROR} Não tenho permissão para criar canais.",
-                ephemeral=True
+                "❌ Sem permissão para criar canais.", ephemeral=True
             )
         except Exception as e:
-            logger.error(f"Error creating ticket: {e}")
-            await interaction.followup.send(
-                f"{Emojis.ERROR} Erro ao criar ticket. Tente novamente.",
-                ephemeral=True
-            )
-    
-    async def close_ticket_confirm(self, interaction: discord.Interaction):
-        """Solicita confirmação para fechar ticket"""
-        
-        # Verificar se é um canal de ticket
+            logger.error(f"Erro ao criar ticket: {e}")
+            await interaction.followup.send("❌ Erro ao criar ticket.", ephemeral=True)
+
+    async def iniciar_fechamento(self, interaction: discord.Interaction):
+        """Inicia o processo de fechar o ticket"""
+
+        # Verificar se é ticket
         ticket = await self.db.get_ticket_by_channel(interaction.channel.id)
-        
-        if not ticket:
-            await interaction.response.send_message(
-                f"{Emojis.ERROR} Este não é um canal de ticket.",
-                ephemeral=True
-            )
-            return
-        
-        # Verificar permissão
-        is_creator = interaction.user.id == ticket.creator_id
         is_staff = PermissionChecker.is_staff(interaction.user)
-        
-        if not (is_creator or is_staff):
+        is_creator = ticket and ticket.creator_id == interaction.user.id
+
+        if not (is_staff or is_creator):
             await interaction.response.send_message(
-                f"{Emojis.ERROR} Você não tem permissão para fechar este ticket.",
-                ephemeral=True
+                "❌ Você não pode fechar este ticket.", ephemeral=True
             )
             return
-        
+
         # Pedir confirmação
-        view = CloseConfirmView()
-        
+        view = ConfirmarFechamentoView()
         await interaction.response.send_message(
-            f"{Emojis.WARNING} Tem certeza que deseja fechar este ticket?",
+            "⚠️ **Tem certeza que deseja fechar este ticket?**",
             view=view,
             ephemeral=True
         )
-        
-        # Aguardar resposta
+
         await view.wait()
-        
-        if view.value:
-            await self.close_ticket(interaction, ticket)
+
+        if view.confirmado:
+            await self._fechar_canal(interaction)
         else:
             await interaction.edit_original_response(
-                content=f"{Emojis.INFO} Fechamento cancelado.",
+                content="❌ Fechamento cancelado.",
                 view=None
             )
-    
-    async def close_ticket(self, interaction: discord.Interaction, ticket: Ticket):
-        """Fecha um ticket"""
-        
+
+    async def _fechar_canal(self, interaction: discord.Interaction):
+        """Fecha e deleta o canal do ticket"""
+
         try:
+            # Avisar no canal
+            embed = discord.Embed(
+                title="🔒 Ticket Fechado",
+                description=(
+                    f"Este ticket foi fechado por {interaction.user.mention}.\n"
+                    "O canal será deletado em **5 segundos**."
+                ),
+                color=0xff0000,
+                timestamp=discord.utils.utcnow()
+            )
+
+            # Editar resposta original
+            await interaction.edit_original_response(
+                content="✅ Ticket fechado com sucesso.",
+                view=None
+            )
+
+            # Enviar aviso no canal
+            await interaction.channel.send(embed=embed)
+
             # Atualizar banco
             await self.db.close_ticket(interaction.channel.id)
-            
-            # Mensagem de fechamento
-            embed = VoidEmbeds.info(
-                "Ticket Fechado",
-                f"Este ticket foi fechado por {interaction.user.mention}.\n"
-                f"O canal será deletado em 5 segundos."
-            )
-            
-            await interaction.channel.send(embed=embed)
-            
+
             # Log
             await self.db.create_log(
                 "ticket",
                 interaction.user.id,
                 "closed",
-                f"Ticket: {ticket.ticket_type} | Channel: {interaction.channel.id}"
+                f"Channel: {interaction.channel.id}"
             )
-            
-            logger.info(f"Ticket closed by {interaction.user}: {interaction.channel}")
-            
-            # Enviar log
-            await self.send_ticket_log(
-                interaction.guild,
-                f"{Emojis.CLOSE} **Ticket Fechado**",
-                f"**Canal:** {interaction.channel.name}\n"
-                f"**Tipo:** {TicketType.get_name(ticket.ticket_type)}\n"
-                f"**Fechado por:** {interaction.user.mention}\n"
-                f"**Criador:** <@{ticket.creator_id}>"
-            )
-            
-            # Aguardar e deletar canal
+
+            # Aguardar e deletar
             await asyncio.sleep(5)
-            await interaction.channel.delete()
-            
+            await interaction.channel.delete(reason=f"Ticket fechado por {interaction.user}")
+
+        except discord.NotFound:
+            pass  # Canal já foi deletado
+        except discord.Forbidden:
+            logger.error("Sem permissão para deletar o canal do ticket")
         except Exception as e:
-            logger.error(f"Error closing ticket: {e}")
-            await interaction.followup.send(
-                f"{Emojis.ERROR} Erro ao fechar ticket.",
-                ephemeral=True
-            )
-    
-    async def claim_ticket(self, interaction: discord.Interaction):
-        """Staff assume o ticket"""
-        
-        # Verificar se é staff
+            logger.error(f"Erro ao fechar ticket: {e}")
+
+    async def assumir_ticket(self, interaction: discord.Interaction):
         if not PermissionChecker.is_staff(interaction.user):
             await interaction.response.send_message(
-                f"{Emojis.ERROR} Apenas staff pode assumir tickets.",
-                ephemeral=True
+                "❌ Apenas staff pode assumir tickets.", ephemeral=True
             )
             return
-        
-        # Verificar se é ticket
-        ticket = await self.db.get_ticket_by_channel(interaction.channel.id)
-        
-        if not ticket:
-            await interaction.response.send_message(
-                f"{Emojis.ERROR} Este não é um canal de ticket.",
-                ephemeral=True
-            )
-            return
-        
-        # Atualizar ticket
+
         await self.db.claim_ticket(interaction.channel.id, interaction.user.id)
-        
-        # Confirmar
-        embed = VoidEmbeds.success(
-            "Ticket Assumido",
-            f"{interaction.user.mention} assumiu este ticket."
+
+        embed = discord.Embed(
+            description=f"✅ {interaction.user.mention} assumiu este ticket.",
+            color=0x00ff00
         )
-        
         await interaction.response.send_message(embed=embed)
-        
-        # Log
-        await self.db.create_log(
-            "ticket",
-            interaction.user.id,
-            "claimed",
-            f"Channel: {interaction.channel.id}"
-        )
-        
-        logger.info(f"Ticket claimed by {interaction.user}: {interaction.channel}")
-    
-    async def add_user_modal(self, interaction: discord.Interaction):
-        """Mostra modal para adicionar usuário"""
-        
-        # Verificar permissão
+
+    async def adicionar_usuario(self, interaction: discord.Interaction):
         if not PermissionChecker.is_staff(interaction.user):
             await interaction.response.send_message(
-                f"{Emojis.ERROR} Apenas staff pode adicionar usuários.",
-                ephemeral=True
+                "❌ Apenas staff pode adicionar usuários.", ephemeral=True
             )
             return
-        
+
         modal = AddUserModal()
         await interaction.response.send_modal(modal)
         await modal.wait()
-        
-        # Processar ID
-        user_id_str = modal.user_id.replace("<@", "").replace(">", "").replace("!", "")
-        
+
         try:
-            user_id = int(user_id_str)
-            member = interaction.guild.get_member(user_id)
-            
+            uid = int(modal.user_input.value.strip())
+            member = interaction.guild.get_member(uid)
             if not member:
-                await interaction.followup.send(
-                    f"{Emojis.ERROR} Usuário não encontrado.",
-                    ephemeral=True
-                )
+                await interaction.followup.send("❌ Usuário não encontrado.", ephemeral=True)
                 return
-            
-            # Adicionar permissão ao canal
+
             await interaction.channel.set_permissions(
                 member,
                 read_messages=True,
                 send_messages=True
             )
-            
-            await interaction.followup.send(
-                f"{Emojis.SUCCESS} {member.mention} adicionado ao ticket.",
-                ephemeral=True
-            )
-            
-            await interaction.channel.send(
-                f"{member.mention} foi adicionado ao ticket por {interaction.user.mention}."
-            )
-            
-            logger.info(f"User {member} added to ticket by {interaction.user}")
-            
+            await interaction.followup.send(f"✅ {member.mention} adicionado.", ephemeral=True)
+            await interaction.channel.send(f"➕ {member.mention} foi adicionado ao ticket.")
+
         except ValueError:
-            await interaction.followup.send(
-                f"{Emojis.ERROR} ID inválido.",
-                ephemeral=True
-            )
-        except Exception as e:
-            logger.error(f"Error adding user to ticket: {e}")
-            await interaction.followup.send(
-                f"{Emojis.ERROR} Erro ao adicionar usuário.",
-                ephemeral=True
-            )
-    
-    async def remove_user_modal(self, interaction: discord.Interaction):
-        """Mostra modal para remover usuário"""
-        
-        # Verificar permissão
+            await interaction.followup.send("❌ ID inválido.", ephemeral=True)
+
+    async def remover_usuario(self, interaction: discord.Interaction):
         if not PermissionChecker.is_staff(interaction.user):
             await interaction.response.send_message(
-                f"{Emojis.ERROR} Apenas staff pode remover usuários.",
-                ephemeral=True
+                "❌ Apenas staff pode remover usuários.", ephemeral=True
             )
             return
-        
+
         modal = RemoveUserModal()
         await interaction.response.send_modal(modal)
         await modal.wait()
-        
-        # Processar ID
-        user_id_str = modal.user_id.replace("<@", "").replace(">", "").replace("!", "")
-        
+
         try:
-            user_id = int(user_id_str)
-            member = interaction.guild.get_member(user_id)
-            
+            uid = int(modal.user_input.value.strip())
+            member = interaction.guild.get_member(uid)
             if not member:
-                await interaction.followup.send(
-                    f"{Emojis.ERROR} Usuário não encontrado.",
-                    ephemeral=True
-                )
+                await interaction.followup.send("❌ Usuário não encontrado.", ephemeral=True)
                 return
-            
-            # Remover permissão do canal
+
             await interaction.channel.set_permissions(member, overwrite=None)
-            
-            await interaction.followup.send(
-                f"{Emojis.SUCCESS} {member.mention} removido do ticket.",
-                ephemeral=True
-            )
-            
-            await interaction.channel.send(
-                f"{member.mention} foi removido do ticket por {interaction.user.mention}."
-            )
-            
-            logger.info(f"User {member} removed from ticket by {interaction.user}")
-            
+            await interaction.followup.send(f"✅ {member.mention} removido.", ephemeral=True)
+            await interaction.channel.send(f"➖ {member.mention} foi removido do ticket.")
+
         except ValueError:
-            await interaction.followup.send(
-                f"{Emojis.ERROR} ID inválido.",
-                ephemeral=True
-            )
-        except Exception as e:
-            logger.error(f"Error removing user from ticket: {e}")
-            await interaction.followup.send(
-                f"{Emojis.ERROR} Erro ao remover usuário.",
-                ephemeral=True
-            )
-    
-    async def send_ticket_log(self, guild: discord.Guild, title: str, description: str):
-        """Envia log de ticket"""
-        
-        log_channel_id = config.TICKET_LOG_CHANNEL_ID or config.LOG_CHANNEL_ID
-        
-        if not log_channel_id:
-            return
-        
-        log_channel = guild.get_channel(log_channel_id)
-        
-        if not log_channel:
-            return
-        
-        embed = VoidEmbeds.default(title, description)
-        
-        try:
-            await log_channel.send(embed=embed)
-        except:
-            pass
+            await interaction.followup.send("❌ ID inválido.", ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
-    """Setup function para carregar o cog"""
     await bot.add_cog(Tickets(bot))

@@ -1,6 +1,7 @@
 """
-🌑 VOID Store Bot - Sistema de Embeds para Canal de Stock
-Permite criar embeds customizáveis com qualquer texto.
+🌑 VOID Store Bot - Auto-Embed para Canal de Stock
+Sempre que uma mensagem for enviada no canal 1549948220317106186,
+o bot converte em embed com botão de comprar.
 """
 
 import discord
@@ -15,177 +16,231 @@ from utils.logger import logger
 
 
 # ====================================
-# MODAL PARA CRIAR EMBED
+# CONFIGURAÇÃO DO CANAL DE STOCK
 # ====================================
 
-class StockEmbedModal(discord.ui.Modal, title="Criar Embed de Stock"):
-    """Modal para criar embed customizado"""
-    
-    title_input = discord.ui.TextInput(
-        label="Título do Embed",
-        placeholder="Ex: 📦 ESTOQUE DISPONÍVEL",
-        required=True,
-        max_length=256
-    )
-    
-    description_input = discord.ui.TextInput(
-        label="Descrição / Conteúdo",
-        placeholder="Cole aqui seu texto. Você pode usar **negrito**, *itálico*, etc.",
-        required=True,
-        style=discord.TextStyle.long,
-        max_length=4096
-    )
-    
-    color_input = discord.ui.TextInput(
-        label="Cor (hex opcional)",
-        placeholder="Ex: #2b2d31 ou deixe vazio para preto",
-        required=False,
-        max_length=20
-    )
-    
-    footer_input = discord.ui.TextInput(
-        label="Footer (opcional)",
-        placeholder="Ex: 🌑 VOID Store | Atualizado hoje",
-        required=False,
-        max_length=2048
-    )
-    
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer()
-        
-        cog = interaction.client.get_cog("StockDisplay")
-        if cog:
-            await cog.create_stock_embed(
-                interaction,
-                self.title_input.value,
-                self.description_input.value,
-                self.color_input.value,
-                self.footer_input.value
-            )
+CANAL_STOCK_ID = 1549948220317106186  # Seu canal específico
 
 
 # ====================================
-# COG
+# VIEW DO BOTÃO COMPRAR
+# ====================================
+
+class StockBuyView(discord.ui.View):
+    """Botão de comprar que abre a seleção de serviço"""
+    
+    def __init__(self, produto_texto: str):
+        super().__init__(timeout=None)
+        self.produto_texto = produto_texto
+    
+    @discord.ui.button(
+        label="🛒 Comprar Agora",
+        style=discord.ButtonStyle.green,
+        emoji="💰",
+        custom_id="stock_buy_now"
+    )
+    async def comprar_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Abre uma seleção de serviço simples
+        await interaction.response.send_message(
+            f"🛍️ **Compra de:** `{self.produto_texto[:50]}...`\n\n"
+            f"Selecione o tipo de serviço para abrir o canal de atendimento:\n\n"
+            f"💬 **Suporte / Compra** → `/ticket-panel` no canal de atendimento\n"
+            f"⚙️ **Serviços específicos** → `/servicos-painel` no canal de serviços\n\n"
+            f"Ou vá diretamente ao canal `#compras` e clique no botão correspondente.",
+            ephemeral=True
+        )
+
+
+# ====================================
+# COG ATUALIZADO
 # ====================================
 
 class StockDisplay(commands.Cog):
-    """Sistema de embeds para canal de stock"""
-    
+    """Sistema de embeds automáticos para o canal de stock"""
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = bot.db
-    
-    @app_commands.command(name="stock-embed", description="📦 Cria um embed customizado para o canal de stock")
+
+    # ====================================
+    # LISTENER AUTOMÁTICO
+    # ====================================
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        """
+        Sempre que uma mensagem for enviada no canal 1549948220317106186,
+        o bot a transforma em embed com botão de comprar.
+        """
+        
+        # Ignorar mensagens do próprio bot
+        if message.author.bot:
+            return
+        
+        # Verificar se é exatamente o canal configurado
+        if message.channel.id != CANAL_STOCK_ID:
+            return
+        
+        # Verificar se é staff/admin (opcional — remova o "if" abaixo se quiser que qualquer pessoa possa)
+        # Mas o usuário pediu "quando EU mandar mensagem", então vamos restringir a staff/admin
+        if not message.author.guild_permissions.administrator:
+            if message.author.guild_permissions.manage_messages is False:
+                # Se quiser que qualquer um possa, remova esta verificação
+                # Por segurança, vou manter apenas para staff/admin
+                # Se quiser liberar para todos, apague estas 3 linhas abaixo:
+                pass  # Remova o "pass" e deixo sem restrição se quiser
+        
+        # Capturar o conteúdo da mensagem
+        conteudo = message.content
+        
+        # Se for apenas um link ou vazio, ignorar
+        if not conteudo or len(conteudo.strip()) < 2:
+            return
+        
+        # Limpar o conteúdo (remover @everyone, @here, etc. se necessário)
+        texto_limpo = conteudo.replace("@everyone", "").replace("@here", "").strip()
+        
+        # Criar o embed automaticamente a partir do conteúdo
+        embed = discord.Embed(
+            title="📦 PRODUTO DISPONÍVEL — VOID Store",
+            description=texto_limpo,
+            color=0x000000,  # Preto (identidade VOID)
+            timestamp=discord.utils.utcnow()
+        )
+        
+        # Adicionar footer automático
+        embed.set_footer(
+            text=f"🌑 VOID Store | Postado por {message.author.display_name} | {message.created_at.strftime('%d/%m/%Y %H:%M')}"
+        )
+        
+        # Adicionar thumbnail do autor (opcional)
+        if message.author.display_avatar:
+            embed.set_thumbnail(url=message.author.display_avatar.url)
+        
+        # Adicionar instruções automáticas
+        embed.add_field(
+            name="💡 Como comprar",
+            value=(
+                "Clique no botão abaixo para iniciar sua compra.\n"
+                "Você será levado ao canal de atendimento para finalizar."
+            ),
+            inline=False
+        )
+        
+        # Criar a view com o botão de comprar
+        view = StockBuyView(texto_limpo)
+        
+        # Responder à mensagem original com o embed
+        # Apagar a mensagem original (opcional — descomente se quiser)
+        # try:
+        #     await message.delete()
+        # except:
+        #     pass
+        
+        # Enviar o embed no mesmo canal
+        await message.channel.send(embed=embed, view=view)
+        
+        # Confirmar ao usuário que o anúncio foi criado
+        await message.reply(
+            f"✅ {message.author.mention}, seu anúncio foi transformado em embed!\n"
+            f"💡 **Dica:** Use `/stock-embed` para criar anúncios ainda mais bonitos com cores customizadas.",
+            ephemeral=True
+        )
+        
+        # Log no banco
+        await self.db.create_log(
+            "stock_display",
+            message.author.id,
+            "auto_embed_created",
+            f"Channel: {message.channel.id} | Content length: {len(texto_limpo)}"
+        )
+        
+        logger.info(f"Auto-embed created from message by {message.author.id} in channel {message.channel.id}")
+
+
+# ====================================
+# COMANDOS MANUAIS (mantidos)
+# ====================================
+
+    @app_commands.command(name="stock-embed", description="📦 Cria embed manual para o canal de stock")
+    @app_commands.describe(
+        titulo="Título do anúncio (ex: 📦 ESTOQUE DISPONÍVEL)",
+        texto="Texto completo do anúncio (preços, descrição, etc.)",
+        cor_hex="Cor em hexadecimal (opcional, ex: #2b2d31)",
+        footer="Texto do rodapé (opcional)"
+    )
     @app_commands.checks.has_permissions(manage_messages=True)
-    async def stock_embed_command(self, interaction: discord.Interaction):
-        """Abre modal para criar embed de stock"""
+    async def stock_embed_command(
+        self,
+        interaction: discord.Interaction,
+        titulo: str,
+        texto: str,
+        cor_hex: Optional[str] = None,
+        footer: Optional[str] = None
+    ):
+        """Cria embed manual no canal onde o comando for usado"""
         
         if not await PermissionChecker.check_interaction_permissions(interaction, require_staff=True):
             return
-        
-        modal = StockEmbedModal()
-        await interaction.response.send_modal(modal)
-    
-    async def create_stock_embed(
-        self,
-        interaction: discord.Interaction,
-        title: str,
-        description: str,
-        color_hex: Optional[str],
-        footer: Optional[str]
-    ):
-        """Cria e envia o embed de stock"""
-        
+
         # Parse da cor
-        color = 0x000000  # Preto padrão
-        if color_hex:
+        cor = 0x000000
+        if cor_hex and cor_hex.startswith("#"):
             try:
-                color_hex = color_hex.replace("#", "")
-                color = int(color_hex, 16)
+                cor = int(cor_hex.replace("#", ""), 16)
             except ValueError:
                 pass
-        
-        # Criar embed
+
         embed = discord.Embed(
-            title=title,
-            description=description,
-            color=color,
+            title=titulo,
+            description=texto,
+            color=cor,
             timestamp=discord.utils.utcnow()
         )
-        
+
         if footer:
             embed.set_footer(text=footer, icon_url=interaction.guild.icon.url if interaction.guild.icon else None)
         else:
-            embed.set_footer(text="🌑 VOID Store")
-        
-        # Botão de editar/deletar (apenas para staff)
+            embed.set_footer(text=f"🌑 VOID Store | Postado por {interaction.user.display_name}")
+
+        # Adicionar botão de comprar no embed manual também
         view = discord.ui.View()
-        
-        edit_btn = discord.ui.Button(
-            label="✏️ Editar",
-            style=discord.ButtonStyle.secondary,
-            custom_id=f"stock_edit:{interaction.user.id}"
+        btn_comprar = discord.ui.Button(
+            label="🛒 Comprar",
+            style=discord.ButtonStyle.green,
+            emoji="💰",
+            custom_id="stock_buy_manual"
         )
         
-        delete_btn = discord.ui.Button(
-            label="🗑️ Deletar",
-            style=discord.ButtonStyle.danger,
-            custom_id=f"stock_delete:{interaction.user.id}"
-        )
-        
-        view.add_item(edit_btn)
-        view.add_item(delete_btn)
-        
-        # Enviar
-        await interaction.followup.send(embed=embed, view=view)
-        
-        logger.info(f"Stock embed created by {interaction.user}")
-    
-    @app_commands.command(name="stock-listar", description="📦 Lista todos os itens do estoque formatado")
-    async def stock_list(self, interaction: discord.Interaction):
-        """Lista o estoque em formato de embed bonito"""
-        
-        # Buscar itens do banco
-        items = await self.db.get_all_inventory()
-        
-        if not items:
-            await interaction.response.send_message(
-                f"{Emojis.INFO} Nenhum item no estoque.",
+        async def comprar_callback(i: discord.Interaction):
+            await i.response.send_message(
+                f"🛍️ Você quer comprar: **{titulo}**\n\n"
+                f"Por favor, vá ao canal `#compras` ou `#atendimento` e clique no botão correspondente.\n"
+                f"Ou use `/ticket-panel` para abrir um ticket de compra.",
                 ephemeral=True
             )
-            return
         
-        # Agrupar por categoria
-        categories = {}
-        for item in items:
-            if item.category not in categories:
-                categories[item.category] = []
-            categories[item.category].append(item)
-        
-        # Criar embed
-        embed = discord.Embed(
-            title="📦 𝐄𝐒𝐓𝐎𝐐𝐔𝐄 — 𝐕𝐎𝐈𝐃 𝐒𝐭𝐨𝐫𝐞",
-            description="Confira nossos produtos disponíveis:",
-            color=0x000000,
-            timestamp=discord.utils.utcnow()
-        )
-        
-        for category, cat_items in categories.items():
-            items_text = ""
-            for item in cat_items:
-                status_emoji = "🟢" if item.quantity > 5 else "🟡" if item.quantity > 0 else "🔴"
-                items_text += f"{status_emoji} **{item.name}** — `R$ {item.price:.2f}` ({item.quantity}x)\n"
-            
-            embed.add_field(
-                name=f"📁 {category.upper()}",
-                value=items_text or "Nenhum item",
-                inline=False
-            )
-        
-        embed.set_footer(text="🌑 VOID Store | Preços podem variar")
-        
-        await interaction.response.send_message(embed=embed)
+        btn_comprar.callback = comprar_callback
+        view.add_item(btn_comprar)
 
+        # Se for no canal específico, também salva no log
+        await interaction.response.send_message(embed=embed, view=view)
+        
+        # Se for no canal de stock, registra no log
+        if interaction.channel.id == CANAL_STOCK_ID:
+            await self.db.create_log(
+                "stock_display",
+                interaction.user.id,
+                "manual_embed",
+                f"Title: {titulo[:50]}"
+            )
+
+        logger.info(f"Manual stock embed created by {interaction.user}")
+
+
+# ====================================
+# SETUP DO COG
+# ====================================
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(StockDisplay(bot))

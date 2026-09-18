@@ -42,6 +42,11 @@ class Config:
     GUILD_ID: Optional[int] = _get_int("GUILD_ID")
     PREFIX: str = _get_str("PREFIX", "!")
 
+    AUTHORIZED_ROLE_IDS: list[int] = [
+        1550096907739857079,
+        1550097139093209139,
+        1550097169170563203
+    ]
     # ====================================
     # DATABASE
     # ====================================

@@ -89,17 +89,17 @@ class VoidBot(commands.Bot):
         # Em bot.py, dentro de load_cogs(), atualize a lista:
 
         cog_files = [
-            "tickets",
-            "orders",              # Agora com /pedido-manual
-            "shop",                # NOVO
-            "services",            # NOVO
-            "stock_display",       # NOVO
-            "pix",                 # NOVO
+            "tickets",       # Corrigido
+            "orders",        # Pedido manual
+            "shop",          # Loja com botões
+            "services",      # Serviços com fórum e preços
+            "stock_display", # Embeds de stock
+            "pix",           # PIX corrigido
             "roles",
             "vip",
             "booster",
             "tasks",
-            "inventory",
+            "inventory",     # Corrigido
             "moderation",
             "logs",
             "sheets",

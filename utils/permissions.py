@@ -3,172 +3,119 @@
 """
 
 import discord
-from discord import Member, Interaction
-from typing import Optional, Union
+from discord import Interaction, Member
+from typing import Optional
 from config import config
 
+
 class PermissionChecker:
-    """Classe para verificar permissões de usuários"""
-    
+    """Verificação de permissões do bot"""
+
+    # ====================================
+    # VERIFICAÇÃO DE CARGOS AUTORIZADOS
+    # ====================================
+
     @staticmethod
-    def is_admin(member: Member) -> bool:
+    def has_authorized_role(member: Member) -> bool:
         """
-        Verifica se o membro é administrador
+        Verifica se o membro possui um dos cargos autorizados
+        a usar os comandos do bot.
         
-        Args:
-            member: Membro a verificar
-            
-        Returns:
-            True se for administrador
+        Cargos autorizados:
+        1550096907739857079
+        1550097139093209139
+        1550097169170563203
         """
-        # Verificar permissão de administrador
+        # Admins sempre passam
         if member.guild_permissions.administrator:
             return True
         
-        # Verificar cargo de admin configurado
+        # Verificar cargos autorizados
+        member_role_ids = [role.id for role in member.roles]
+        for role_id in config.AUTHORIZED_ROLE_IDS:
+            if role_id in member_role_ids:
+                return True
+        
+        return False
+
+    @staticmethod
+    def is_admin(member: Member) -> bool:
+        if member.guild_permissions.administrator:
+            return True
         if config.ADMIN_ROLE_ID and member.get_role(config.ADMIN_ROLE_ID):
             return True
-        
         return False
-    
+
     @staticmethod
     def is_staff(member: Member) -> bool:
-        """
-        Verifica se o membro é staff
-        
-        Args:
-            member: Membro a verificar
-            
-        Returns:
-            True se for staff
-        """
-        # Admin é staff
         if PermissionChecker.is_admin(member):
             return True
-        
-        # Verificar cargo de staff configurado
         if config.STAFF_ROLE_ID and member.get_role(config.STAFF_ROLE_ID):
             return True
-        
+        # Verificar cargos autorizados
+        if PermissionChecker.has_authorized_role(member):
+            return True
         return False
-    
+
     @staticmethod
     def is_vip(member: Member) -> bool:
-        """
-        Verifica se o membro é VIP
-        
-        Args:
-            member: Membro a verificar
-            
-        Returns:
-            True se for VIP
-        """
         if config.VIP_ROLE_ID and member.get_role(config.VIP_ROLE_ID):
             return True
         return False
-    
+
     @staticmethod
     def is_booster(member: Member) -> bool:
-        """
-        Verifica se o membro é Booster
-        
-        Args:
-            member: Membro a verificar
-            
-        Returns:
-            True se for Booster
-        """
-        # Verificar cargo premium_subscriber (boost padrão do Discord)
         if member.premium_since is not None:
             return True
-        
-        # Verificar cargo de booster configurado
         if config.BOOSTER_ROLE_ID and member.get_role(config.BOOSTER_ROLE_ID):
             return True
-        
         return False
-    
-    @staticmethod
-    def can_moderate(member: Member) -> bool:
-        """
-        Verifica se o membro pode moderar
-        
-        Args:
-            member: Membro a verificar
-            
-        Returns:
-            True se puder moderar
-        """
-        return (
-            member.guild_permissions.kick_members or
-            member.guild_permissions.ban_members or
-            PermissionChecker.is_staff(member)
-        )
-    
+
     @staticmethod
     async def check_interaction_permissions(
         interaction: Interaction,
         require_staff: bool = False,
         require_admin: bool = False,
-        require_mod: bool = False
+        require_mod: bool = False,
+        require_authorized: bool = False
     ) -> bool:
         """
-        Verifica permissões em uma interação
-        
-        Args:
-            interaction: Interação do Discord
-            require_staff: Requer cargo de staff
-            require_admin: Requer cargo de admin
-            require_mod: Requer permissões de moderação
-            
-        Returns:
-            True se tiver permissão
+        Verificação central de permissões para interações.
+        Sempre verifica se o usuário tem cargo autorizado.
         """
         member = interaction.user
-        
+
+        # Verificação base: cargo autorizado (para todos os comandos)
+        if require_authorized or require_staff or require_admin or require_mod:
+            if not PermissionChecker.has_authorized_role(member):
+                await interaction.response.send_message(
+                    "❌ Você não tem permissão para usar este comando.",
+                    ephemeral=True
+                )
+                return False
+
         if require_admin:
             if not PermissionChecker.is_admin(member):
                 await interaction.response.send_message(
-                    "❌ Você não tem permissão para usar este comando. (Requer: Administrador)",
+                    "❌ Este comando requer cargo de **Administrador**.",
                     ephemeral=True
                 )
                 return False
-        
+
         elif require_staff:
             if not PermissionChecker.is_staff(member):
                 await interaction.response.send_message(
-                    "❌ Você não tem permissão para usar este comando. (Requer: Staff)",
+                    "❌ Este comando requer cargo de **Staff**.",
                     ephemeral=True
                 )
                 return False
-        
+
         elif require_mod:
-            if not PermissionChecker.can_moderate(member):
+            if not (member.guild_permissions.kick_members or PermissionChecker.is_staff(member)):
                 await interaction.response.send_message(
-                    "❌ Você não tem permissão para usar este comando. (Requer: Moderador)",
+                    "❌ Este comando requer permissões de **Moderador**.",
                     ephemeral=True
                 )
                 return False
-        
+
         return True
-    
-    @staticmethod
-    def get_highest_role_tier(member: Member) -> Optional[str]:
-        """
-        Retorna o tier mais alto do membro
-        
-        Args:
-            member: Membro a verificar
-            
-        Returns:
-            Nome do tier ou None
-        """
-        tiers = config.get_role_tiers()
-        
-        # Verificar do maior para o menor
-        for tier_name in ['PRESTIGE', 'SUPREME', 'PREMIUM', 'PLUS', 'STARTER']:
-            tier = tiers[tier_name]
-            if tier['role_id'] and member.get_role(tier['role_id']):
-                return tier_name
-        
-        return None

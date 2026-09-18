@@ -1,5 +1,5 @@
 """
-🌑 VOID Store Bot - Sistema de Estoque
+🌑 VOID Store Bot - Sistema de Estoque CORRIGIDO
 """
 
 import discord
@@ -17,7 +17,7 @@ from config import config
 
 
 class Inventory(commands.Cog):
-    """Sistema de gerenciamento de produtos e estoque"""
+    """Sistema de gerenciamento de estoque"""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -25,17 +25,17 @@ class Inventory(commands.Cog):
 
     inventory_group = app_commands.Group(
         name="estoque",
-        description="📦 Gerenciamento de estoque e produtos"
+        description="📦 Gerenciamento de estoque"
     )
 
-    @inventory_group.command(name="adicionar", description="📦 Cadastra ou incrementa item no estoque")
+    @inventory_group.command(name="adicionar", description="📦 Adiciona item ao estoque")
     @app_commands.describe(
-        nome="Nome do produto ou item",
-        categoria="Categoria do produto (ex: Contas, Serviços, Itens)",
-        quantidade="Quantidade disponível",
-        preco="Preço unitário em Reais (ex: 15.00)"
+        nome="Nome do produto",
+        categoria="Categoria",
+        quantidade="Quantidade",
+        preco="Preço unitário"
     )
-    async def add_item(
+    async def adicionar(
         self,
         interaction: discord.Interaction,
         nome: str,
@@ -43,46 +43,47 @@ class Inventory(commands.Cog):
         quantidade: int,
         preco: float
     ):
-        """Adiciona um item ao estoque"""
-
         if not await PermissionChecker.check_interaction_permissions(interaction, require_staff=True):
             return
 
         if quantidade < 0 or preco < 0:
             await interaction.response.send_message(
-                f"{Emojis.ERROR} Quantidade e preço não podem ser negativos.",
-                ephemeral=True
+                "❌ Quantidade e preço não podem ser negativos.", ephemeral=True
             )
             return
 
         await interaction.response.defer()
 
-        # Verificar se já existe item com esse nome
-        existing_item = await self.db.get_inventory_item(nome.strip())
-
-        if existing_item:
-            # Apenas incrementa quantidade
-            new_qty = existing_item.quantity + quantidade
-            await self.db.update_inventory_quantity(existing_item.name, new_qty)
-
-            embed = VoidEmbeds.success(
-                "Estoque Atualizado",
-                f"Item **{existing_item.name}** já existia. A quantidade foi somada!\n\n"
-                f"**Quantidade Anterior:** {existing_item.quantity}\n"
-                f"**Adicionado:** +{quantidade}\n"
-                f"**Total Atual:** {new_qty}"
-            )
-            await interaction.followup.send(embed=embed)
-            return
-
         # Definir status inicial
+        threshold = config.LOW_STOCK_THRESHOLD
         if quantidade == 0:
             status = StockStatus.OUT_OF_STOCK
-        elif quantidade <= config.LOW_STOCK_THRESHOLD:
+        elif quantidade <= threshold:
             status = StockStatus.LOW_STOCK
         else:
             status = StockStatus.AVAILABLE
 
+        # Verificar se já existe
+        existing = await self.db.get_inventory_item(nome.strip())
+
+        if existing:
+            new_qty = existing.quantity + quantidade
+            success = await self.db.update_inventory_quantity(existing.name, new_qty)
+
+            if success:
+                embed = VoidEmbeds.success(
+                    "Estoque Atualizado",
+                    f"**{existing.name}** já existia. Quantidade somada!\n\n"
+                    f"**Anterior:** {existing.quantity}\n"
+                    f"**Adicionado:** +{quantidade}\n"
+                    f"**Total:** {new_qty}"
+                )
+                await interaction.followup.send(embed=embed)
+            else:
+                await interaction.followup.send("❌ Erro ao atualizar estoque.", ephemeral=True)
+            return
+
+        # Criar novo item
         item = InventoryItem(
             name=nome.strip(),
             category=categoria.strip(),
@@ -94,55 +95,43 @@ class Inventory(commands.Cog):
         result = await self.db.create_inventory_item(item)
 
         if result:
-            embed = VoidEmbeds.inventory_item(
-                item.name,
-                item.category,
-                item.quantity,
-                item.price,
-                item.status
+            embed = discord.Embed(
+                title=f"✅ Produto Cadastrado",
+                description=f"**{nome}** foi adicionado ao estoque!",
+                color=0x00ff00
             )
-            await interaction.followup.send(
-                content=f"{Emojis.SUCCESS} Produto cadastrado com sucesso!",
-                embed=embed
-            )
+            embed.add_field(name="Categoria", value=categoria, inline=True)
+            embed.add_field(name="Quantidade", value=str(quantidade), inline=True)
+            embed.add_field(name="Preço", value=format_currency(preco), inline=True)
+            embed.add_field(name="Status", value=status.replace("_", " ").title(), inline=True)
+            embed.set_footer(text="🌑 VOID Store")
 
-            # Sincronizar Google Sheets
-            sheets_cog = self.bot.get_cog("Sheets")
-            if sheets_cog:
-                await sheets_cog.sync_inventory(item)
+            await interaction.followup.send(embed=embed)
 
             await self.db.create_log(
-                "inventory",
-                interaction.user.id,
-                "item_created",
+                "inventory", interaction.user.id, "created",
                 f"Product: {nome} | Qty: {quantidade} | Price: {preco}"
             )
         else:
-            await interaction.followup.send(
-                f"{Emojis.ERROR} Falha ao salvar produto no banco de dados.",
-                ephemeral=True
-            )
+            await interaction.followup.send("❌ Erro ao cadastrar produto.", ephemeral=True)
 
     @inventory_group.command(name="remover", description="📦 Remove unidades do estoque")
     @app_commands.describe(
         nome="Nome exato do produto",
-        quantidade="Quantidade de unidades a abater"
+        quantidade="Quantidade a remover"
     )
-    async def remove_quantity(
+    async def remover(
         self,
         interaction: discord.Interaction,
         nome: str,
         quantidade: int
     ):
-        """Reduz a quantidade de um produto"""
-
         if not await PermissionChecker.check_interaction_permissions(interaction, require_staff=True):
             return
 
         if quantidade <= 0:
             await interaction.response.send_message(
-                f"{Emojis.ERROR} A quantidade para remoção deve ser maior que zero.",
-                ephemeral=True
+                "❌ Quantidade deve ser maior que zero.", ephemeral=True
             )
             return
 
@@ -152,127 +141,171 @@ class Inventory(commands.Cog):
 
         if not item:
             await interaction.followup.send(
-                f"{Emojis.ERROR} Produto `{nome}` não encontrado no estoque.",
+                f"❌ Produto `{nome}` não encontrado. Verifique o nome exato com `/estoque listar`.",
                 ephemeral=True
             )
             return
 
         if item.quantity < quantidade:
             await interaction.followup.send(
-                f"{Emojis.ERROR} Estoque insuficiente. Estoque atual: **{item.quantity}** unidades.",
+                f"❌ Estoque insuficiente.\n"
+                f"**Disponível:** {item.quantity} unidades\n"
+                f"**Tentou remover:** {quantidade} unidades",
                 ephemeral=True
             )
             return
 
         new_qty = item.quantity - quantidade
-        await self.db.update_inventory_quantity(item.name, new_qty)
+        success = await self.db.update_inventory_quantity(item.name, new_qty)
 
-        embed = VoidEmbeds.success(
-            "Estoque Atualizado",
-            f"**Produto:** {item.name}\n"
-            f"**Removido:** -{quantidade} unidades\n"
-            f"**Estoque Restante:** {new_qty} unidades"
-        )
-
-        if new_qty <= config.LOW_STOCK_THRESHOLD and new_qty > 0:
-            embed.add_field(
-                name="Aviso",
-                value=f"{Emojis.LOW_STOCK} Este item entrou em **Baixo Estoque**!",
-                inline=False
-            )
-        elif new_qty == 0:
-            embed.add_field(
-                name="Aviso",
-                value=f"{Emojis.OUT_OF_STOCK} Este item está **Esgotado**!",
-                inline=False
+        if success:
+            embed = VoidEmbeds.success(
+                "Estoque Atualizado",
+                f"**{item.name}**\n\n"
+                f"**Removido:** -{quantidade}\n"
+                f"**Restante:** {new_qty}"
             )
 
-        await interaction.followup.send(embed=embed)
+            if new_qty == 0:
+                embed.add_field(name="⚠️ Alerta", value="🔴 Produto **ESGOTADO**!", inline=False)
+            elif new_qty <= config.LOW_STOCK_THRESHOLD:
+                embed.add_field(name="⚠️ Alerta", value="🟡 Produto em **BAIXO ESTOQUE**!", inline=False)
 
-        # Sincronizar Google Sheets
-        item.quantity = new_qty
-        sheets_cog = self.bot.get_cog("Sheets")
-        if sheets_cog:
-            await sheets_cog.sync_inventory(item)
+            await interaction.followup.send(embed=embed)
+        else:
+            await interaction.followup.send("❌ Erro ao atualizar estoque.", ephemeral=True)
 
-        await self.db.create_log(
-            "inventory",
-            interaction.user.id,
-            "stock_reduced",
-            f"Product: {nome} | Removed: {quantidade} | Remaining: {new_qty}"
-        )
-
-    @inventory_group.command(name="consultar", description="🔍 Consulta informações de um produto")
+    @inventory_group.command(name="consultar", description="🔍 Consulta um produto")
     @app_commands.describe(nome="Nome do produto")
-    async def check_item(self, interaction: discord.Interaction, nome: str):
-        """Consulta um item específico"""
-
+    async def consultar(self, interaction: discord.Interaction, nome: str):
         await interaction.response.defer()
 
         item = await self.db.get_inventory_item(nome.strip())
 
         if not item:
             await interaction.followup.send(
-                f"{Emojis.ERROR} Produto `{nome}` não encontrado.",
+                f"❌ Produto `{nome}` não encontrado.",
                 ephemeral=True
             )
             return
 
-        embed = VoidEmbeds.inventory_item(
-            item.name,
-            item.category,
-            item.quantity,
-            item.price,
-            item.status
+        status_emojis = {
+            "available": "🟢 Disponível",
+            "low_stock": "🟡 Baixo Estoque",
+            "out_of_stock": "🔴 Esgotado"
+        }
+
+        embed = discord.Embed(
+            title=f"📦 {item.name}",
+            color=0x000000
         )
+        embed.add_field(name="Categoria", value=item.category, inline=True)
+        embed.add_field(name="Quantidade", value=str(item.quantity), inline=True)
+        embed.add_field(name="Preço", value=format_currency(item.price), inline=True)
+        embed.add_field(name="Status", value=status_emojis.get(item.status, item.status), inline=True)
+        embed.set_footer(text="🌑 VOID Store")
+
         await interaction.followup.send(embed=embed)
 
-    @inventory_group.command(name="listar", description="📦 Exibe todos os itens do estoque da loja")
-    async def list_inventory(self, interaction: discord.Interaction):
-        """Lista todo o estoque público/staff"""
-
+    @inventory_group.command(name="listar", description="📦 Lista todos os produtos do estoque")
+    async def listar(self, interaction: discord.Interaction):
         await interaction.response.defer()
 
         items = await self.db.get_all_inventory()
 
         if not items:
             await interaction.followup.send(
-                f"{Emojis.INFO} Nenhum produto cadastrado no momento.",
+                "📦 Nenhum produto cadastrado no estoque ainda.\n"
+                "Use `/estoque adicionar` para começar!",
                 ephemeral=True
             )
             return
 
-        embed = VoidEmbeds.default(
-            f"{Emojis.INVENTORY} Estoque — VOID Store",
-            "Confira os produtos e serviços disponíveis:"
+        embed = discord.Embed(
+            title="📦 Estoque — VOID Store",
+            description="Produtos cadastrados:",
+            color=0x000000,
+            timestamp=discord.utils.utcnow()
         )
 
-        # Agrupar por categorias
-        categories = {}
+        categories: dict = {}
         for item in items:
-            if item.category not in categories:
-                categories[item.category] = []
-            categories[item.category].append(item)
+            cat = item.category or "Sem Categoria"
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append(item)
 
-        for category, cat_items in categories.items():
-            content = []
-            for item in cat_items:
-                s_emoji = (
-                    Emojis.IN_STOCK if item.quantity > config.LOW_STOCK_THRESHOLD
-                    else Emojis.LOW_STOCK if item.quantity > 0
-                    else Emojis.OUT_OF_STOCK
-                )
-                content.append(
-                    f"{s_emoji} **{item.name}** — {format_currency(item.price)} "
-                    f"(`{item.quantity} disponíveis`)"
-                )
+        for cat, cat_items in categories.items():
+            lines = []
+            for it in cat_items:
+                if it.quantity > config.LOW_STOCK_THRESHOLD:
+                    s = "🟢"
+                elif it.quantity > 0:
+                    s = "🟡"
+                else:
+                    s = "🔴"
+                lines.append(f"{s} **{it.name}** — {format_currency(it.price)} ({it.quantity}x)")
 
             embed.add_field(
-                name=f"📁 {category.upper()}",
-                value="\n".join(content),
+                name=f"📁 {cat}",
+                value="\n".join(lines),
                 inline=False
             )
 
+        embed.set_footer(text=f"🌑 VOID Store | {len(items)} produto(s) cadastrado(s)")
+        await interaction.followup.send(embed=embed)
+
+    @inventory_group.command(name="editar", description="✏️ Edita preço ou quantidade de um produto")
+    @app_commands.describe(
+        nome="Nome do produto",
+        nova_quantidade="Nova quantidade (deixe vazio para não alterar)",
+        novo_preco="Novo preço (deixe vazio para não alterar)"
+    )
+    async def editar(
+        self,
+        interaction: discord.Interaction,
+        nome: str,
+        nova_quantidade: Optional[int] = None,
+        novo_preco: Optional[float] = None
+    ):
+        if not await PermissionChecker.check_interaction_permissions(interaction, require_staff=True):
+            return
+
+        await interaction.response.defer()
+
+        item = await self.db.get_inventory_item(nome.strip())
+        if not item:
+            await interaction.followup.send(
+                f"❌ Produto `{nome}` não encontrado.", ephemeral=True
+            )
+            return
+
+        alteracoes = []
+
+        if nova_quantidade is not None:
+            await self.db.update_inventory_quantity(item.name, nova_quantidade)
+            alteracoes.append(f"**Quantidade:** {item.quantity} → {nova_quantidade}")
+
+        if novo_preco is not None:
+            # Atualizar preço no banco
+            if self.db.db_type == "sqlite":
+                await self.db.connection.execute(
+                    "UPDATE inventory SET price = ?, updated_at = datetime('now') WHERE name = ?",
+                    (novo_preco, item.name)
+                )
+                await self.db.connection.commit()
+            alteracoes.append(f"**Preço:** {format_currency(item.price)} → {format_currency(novo_preco)}")
+
+        if not alteracoes:
+            await interaction.followup.send(
+                "⚠️ Nenhuma alteração informada.", ephemeral=True
+            )
+            return
+
+        embed = VoidEmbeds.success(
+            "Produto Atualizado",
+            f"**{item.name}** foi editado:\n\n" + "\n".join(alteracoes)
+        )
         await interaction.followup.send(embed=embed)
 
 

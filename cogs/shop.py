@@ -12,19 +12,19 @@ class ServiceSelect(discord.ui.Select):
             discord.SelectOption(
                 label="Engrenagem V4",
                 value="engrenagem_v4",
-                description="R$ 29,90 • Desbloqueie a engrenagem V4",
+                description="R$ 11,90 • Desbloqueie 4 engrenagens V4",
                 emoji="⚙️"
             ),
             discord.SelectOption(
                 label="Frutas do Estoque",
                 value="frutas",
-                description="A partir de R$ 15,00 • Frutas físicas e permanentes",
+                description="A partir de R$ 7,90 • Frutas físicas",
                 emoji="🍎"
             ),
             discord.SelectOption(
                 label="Up de Levels",
                 value="levels",
-                description="R$ 19,90 • Serviço de subida de nível rápida",
+                description="R$ 13,90 • Serviço de subida de nível rápida",
                 emoji="⬆️"
             ),
             discord.SelectOption(
@@ -36,13 +36,13 @@ class ServiceSelect(discord.ui.Select):
             discord.SelectOption(
                 label="Money / Beli",
                 value="money_beli",
-                description="R$ 9,90 • Farm de Beli na sua conta",
+                description="R$ 13,00 • Farm de Beli na sua conta",
                 emoji="💰"
             ),
             discord.SelectOption(
                 label="Farm de Materiais",
                 value="farm_materiais",
-                description="R$ 24,90 • Materiais raros e ossos",
+                description="R$ 7,00 • Materiais raros e ossos",
                 emoji="📦"
             ),
             discord.SelectOption(
@@ -173,12 +173,12 @@ class Shop(commands.Cog):
                 "═══════════════════════════\n"
                 "📋 **TABELA DE PREÇOS & SERVIÇOS**\n"
                 "═══════════════════════════\n"
-                "⚙️ **Engrenagem V4** ➔ `R$ 29,90`\n"
-                "🍎 **Frutas (Estoque)** ➔ `A partir de R$ 15,00`\n"
-                "⬆️ **Up de Levels** ➔ `R$ 19,90`\n"
+                "⚙️ **Engrenagem V4** ➔ `R$ 11,90`\n"
+                "🍎 **Frutas (Estoque)** ➔ `A partir de R$ 7,90`\n"
+                "⬆️ **Up de Levels** ➔ `R$ 13,90`\n"
                 "💎 **Fragmentos** ➔ `R$ 12,00`\n"
-                "💰 **Money / Beli** ➔ `R$ 9,90`\n"
-                "📦 **Farm de Materiais** ➔ `R$ 24,90`\n\n"
+                "💰 **Money / Beli** ➔ `R$ 12,90`\n"
+                "📦 **Farm de Materiais** ➔ `R$ 7,00`\n\n"
                 "═══════════════════════════\n"
                 "🚀 **COMO REALIZAR O SEU PEDIDO?**\n"
                 "1️⃣ **Selecione o serviço** desejado no menu suspenso abaixo.\n"

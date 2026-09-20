@@ -1,11 +1,10 @@
 """
-🌑 VOID Store Bot - Exibição e Auto-Embed de Estoque
+🌑 VOID Store Bot - Exibição e Auto-Embed de Estoque (com Debug)
 """
 import os
 import discord
 from discord.ext import commands
 from utils.permissions import PermissionChecker
-
 
 class BuyButton(discord.ui.View):
     def __init__(self, product_name: str):
@@ -19,55 +18,59 @@ class BuyButton(discord.ui.View):
             ephemeral=True
         )
 
-
 class StockDisplay(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # Pega o ID do canal do arquivo .env
-        env_channel_id = os.getenv("STOCK_CHANNEL_ID")
-        self.stock_channel_id = int(env_channel_id) if env_channel_id and env_channel_id.isdigit() else None
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        # Ignora bots e verifica se o ID do canal foi configurado
-        if message.author.bot or not self.stock_channel_id:
+        # Ignora bots
+        if message.author.bot:
             return
 
-        # Verifica se a mensagem foi enviada no canal correto
-        if message.channel.id != self.stock_channel_id:
+        # Pega o ID configurado na Railway ou usa o ID direto do seu canal de estoque
+        env_channel = os.getenv("STOCK_CHANNEL_ID")
+        stock_channel_id = int(env_channel) if env_channel and env_channel.isdigit() else 1549948220317106186
+
+        # Se a mensagem foi em outro canal, ignora
+        if message.channel.id != stock_channel_id:
             return
 
-        # Valida permissões do autor da mensagem
+        print(f"[DEBUG STOCK] Mensagem recebida no canal de estoque de: {message.author.name}")
+
+        # Verifica se o conteúdo foi lido
+        if not message.content:
+            print("[DEBUG STOCK] ERRO: O conteúdo da mensagem veio vazio! Ative a MESSAGE CONTENT INTENT no Portal do Discord.")
+            return
+
+        # Verifica permissão
         if not PermissionChecker.has_authorized_role(message.author):
+            print(f"[DEBUG STOCK] Usuário {message.author.name} não tem permissão para enviar no estoque.")
             return
 
-        content = message.content.strip()
-        if not content:
-            return
+        print("[DEBUG STOCK] Criando Embed e apagando mensagem original...")
 
-        # Apaga a mensagem digitada pelo admin/gerente
+        # Apaga a mensagem enviada pelo usuário
         try:
             await message.delete()
-        except discord.HTTPException:
-            pass
+        except Exception as e:
+            print(f"[DEBUG STOCK] Erro ao deletar mensagem: {e}")
 
-        # Monta o Embed do Produto
+        # Monta o Embed
         embed = discord.Embed(
             title="📦 NOVO ITEM EM ESTOQUE",
-            description=content,
+            description=message.content,
             color=discord.Color.from_rgb(15, 15, 15)
         )
         if message.guild and message.guild.icon:
             embed.set_author(name=message.guild.name, icon_url=message.guild.icon.url)
         embed.set_footer(text="🌑 VOID Store • Clique no botão abaixo para adquirir")
 
-        # Nome do produto para o botão (primeira linha do texto)
-        product_title = content.split("\n")[0]
+        product_title = message.content.split("\n")[0]
         view = BuyButton(product_name=product_title)
 
         await message.channel.send(embed=embed, view=view)
+        print("[DEBUG STOCK] Embed enviado com sucesso!")
 
-
-# Função obrigatória para o discord.py carregar o cog
 async def setup(bot):
     await bot.add_cog(StockDisplay(bot))

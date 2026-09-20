@@ -1,7 +1,8 @@
 """
-🌑 VOID Store Bot - Sistema do Painel de Tickets/Suporte
+🌑 VOID Store Bot - Sistema de Tickets Totalmente Privados
 """
 import discord
+from discord import app_commands
 from discord.ext import commands
 
 
@@ -11,19 +12,19 @@ class TicketSelect(discord.ui.Select):
             discord.SelectOption(
                 label="Comprar Produtos",
                 value="comprar",
-                description="Abra um ticket para adquirir produtos do estoque",
+                description="Abra um carrinho privado para efetuar compras",
                 emoji="🛒"
             ),
             discord.SelectOption(
                 label="Dúvidas & Suporte",
                 value="suporte",
-                description="Tire dúvidas sobre os nossos serviços e entregas",
+                description="Atendimento privado com a administração",
                 emoji="💬"
             ),
             discord.SelectOption(
                 label="Resgatar VIP / Boost",
                 value="vip",
-                description="Resgate as suas recompensas de VIPS ou Impulsos",
+                description="Resgate as suas recompensas de VIP ou Impulso",
                 emoji="💎"
             ),
         ]
@@ -40,7 +41,6 @@ class TicketSelect(discord.ui.Select):
         user = interaction.user
         category_type = self.values[0]
 
-        # Nome limpo e padronizado para o canal
         prefix_map = {
             "comprar": "🛒-carrinho",
             "suporte": "💬-suporte",
@@ -49,7 +49,7 @@ class TicketSelect(discord.ui.Select):
         prefix = prefix_map.get(category_type, "ticket")
         channel_name = f"{prefix}-{user.name.lower()}"
 
-        # 1. Verifica se o cliente já possui um canal aberto nesta categoria
+        # 1. Verifica se já existe um canal aberto para este utilizador
         existing_channel = discord.utils.get(guild.channels, name=channel_name)
         if existing_channel:
             await interaction.response.send_message(
@@ -60,52 +60,77 @@ class TicketSelect(discord.ui.Select):
 
         await interaction.response.defer(ephemeral=True)
 
-        # 2. Configuração de Permissões
+        # 2. PERMISSÕES ESTRITAMENTE PRIVADAS
         overwrites = {
-            guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True),
-            guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, manage_channels=True)
+            # Bloqueia a visualização para todos no servidor
+            guild.default_role: discord.PermissionOverwrite(
+                read_messages=False,
+                view_channel=False
+            ),
+            # Permite acesso exclusivo ao utilizador
+            user: discord.PermissionOverwrite(
+                read_messages=True,
+                view_channel=True,
+                send_messages=True,
+                attach_files=True,
+                embed_links=True
+            ),
+            # Permite ao Bot gerir o canal
+            guild.me: discord.PermissionOverwrite(
+                read_messages=True,
+                view_channel=True,
+                send_messages=True,
+                manage_channels=True
+            )
         }
 
-        # Cargos da gerência
+        # Concede acesso privado aos cargos da gerência (VOID Store)
         for role_id in [1550096907739857079, 1550097139093209139]:
             role = guild.get_role(role_id)
             if role:
-                overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+                overwrites[role] = discord.PermissionOverwrite(
+                    read_messages=True,
+                    view_channel=True,
+                    send_messages=True
+                )
 
         # 3. Localizar categoria "PEDIDOS"
-        category = discord.utils.find(lambda c: "PEDIDOS" in c.name.upper() and isinstance(c, discord.CategoryChannel), guild.categories)
+        category = discord.utils.find(
+            lambda c: "PEDIDOS" in c.name.upper() and isinstance(c, discord.CategoryChannel),
+            guild.categories
+        )
 
+        # 4. Criação do canal privado
         ticket_channel = await guild.create_text_channel(
             name=channel_name,
             category=category,
             overwrites=overwrites,
-            topic=f"Atendimento de {user.display_name} | Categoria: {category_type.upper()}"
+            topic=f"Atendimento Privado: {user.display_name} | Tipo: {category_type.upper()}"
         )
 
-        # 4. Embed Interno do Canal Criado
+        # 5. Embed enviado no canal privado
         embed_ticket = discord.Embed(
-            title=f"🌑 VOID STORE — ATENDIMENTO ({category_type.upper()})",
+            title=f"🌑 VOID STORE — ATENDIMENTO PRIVADO ({category_type.upper()})",
             description=(
-                f"Olá {user.mention}, o teu atendimento foi iniciado com sucesso!\n\n"
+                f"Olá {user.mention}, o teu canal privado foi criado com sucesso!\n\n"
                 f"📌 **Instruções:**\n"
-                f"• Escreve detalhadamente o que precisas ou o item que desejas comprar.\n"
-                f"• Um membro da gerência atenderá a tua solicitação em breve.\n"
-                f"• Para encerrar este atendimento, clica no botão abaixo."
+                f"• Detalha o teu pedido ou questão neste chat.\n"
+                f"• Apenas tu e a equipa da **VOID Store** têm acesso a este canal.\n"
+                f"• Clica no botão abaixo quando quiseres fechar o atendimento."
             ),
-            color=discord.Color.from_rgb(20, 20, 20)
+            color=discord.Color.from_rgb(15, 15, 15)
         )
-        embed_ticket.set_thumbnail(url=guild.icon.url if guild.icon else None)
-        embed_ticket.set_footer(text="🌑 VOID Store • Sistema de Vendas & Suporte")
+        if guild.icon:
+            embed_ticket.set_thumbnail(url=guild.icon.url)
+        embed_ticket.set_footer(text="🌑 VOID Store • Canal 100% Privado")
 
-        # Botão para fechar o ticket dentro do canal
         class CloseTicketView(discord.ui.View):
             def __init__(self):
                 super().__init__(timeout=None)
 
             @discord.ui.button(label="Fechar Atendimento", style=discord.ButtonStyle.red, emoji="🔒")
             async def close(self, inner_interaction: discord.Interaction, inner_button: discord.ui.Button):
-                await inner_interaction.response.send_message("🔒 Encerrando o atendimento em 5 segundos...")
+                await inner_interaction.response.send_message("🔒 A fechar canal privado em 5 segundos...")
                 import asyncio
                 await asyncio.sleep(5)
                 await inner_interaction.channel.delete()
@@ -113,7 +138,7 @@ class TicketSelect(discord.ui.Select):
         await ticket_channel.send(content=f"{user.mention}", embed=embed_ticket, view=CloseTicketView())
 
         await interaction.followup.send(
-            f"✅ **Atendimento criado!** Clica em {ticket_channel.mention} para seres atendido.",
+            f"✅ **Canal privado criado!** Acede a {ticket_channel.mention} para seres atendido.",
             ephemeral=True
         )
 
@@ -137,19 +162,16 @@ class Tickets(commands.Cog):
                 "Seja bem-vindo à **VOID Store**!\n\n"
                 "Para efetuar compras, tirar dúvidas ou resgatar benefícios, selecione a opção desejada no **menu abaixo** para abrir um canal privado.\n\n"
                 "```\n"
-                "🛒 Comprar Produtos   ➔ Abertura de carrinho direto\n"
-                "💬 Dúvidas & Suporte  ➔ Falar com a administração\n"
-                "💎 Resgatar VIP       ➔ Resgate de vantagens\n"
+                "🛒 Comprar Produtos   ➔ Abertura de carrinho privado\n"
+                "💬 Dúvidas & Suporte  ➔ Chat privado com a gerência\n"
+                "💎 Resgatar VIP       ➔ Resgate de vantagens privado\n"
                 "```\n"
-                "⚙️ *Atendimento rápido e automatizado.*"
+                "⚙️ *Atendimento 100% privado e seguro.*"
             ),
             color=discord.Color.from_rgb(15, 15, 15)
         )
-        
         if interaction.guild and interaction.guild.icon:
             embed.set_thumbnail(url=interaction.guild.icon.url)
-            
-        embed.set_image(url="https://media.discordapp.net/attachments/1549930891588141157/1549948220317106186/banner.png")  # Opcional: Adiciona banner visual
         embed.set_footer(text="🌑 VOID Store • Selecione abaixo para abrir o seu ticket")
 
         await interaction.channel.send(embed=embed, view=TicketPanelView())

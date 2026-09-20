@@ -1,116 +1,202 @@
 """
-🌑 VOID Store Bot - Sistema de Loja de Elite
+🌑 VOID Store Bot - Painel Oficial /loja-painel
 """
 import discord
 from discord import app_commands
 from discord.ext import commands
-import asyncio
-from utils.permissions import PermissionChecker
-from config import config
 
-PRODUTOS = {
-    "v4": {"nome": "Engrenagem V4", "emoji": "⚙️", "cor": 0x2b2d31},
-    "frutas": {"nome": "Frutas", "emoji": "🍎", "cor": 0x9b59b6},
-    "levels": {"nome": "Levels", "emoji": "⬆️", "cor": 0x3498db},
-    "fragmentos": {"nome": "Fragmentos", "emoji": "💎", "cor": 0xe74c3c},
-    "money": {"nome": "Money / Beli", "emoji": "💰", "cor": 0xf39c12},
-    "materiais": {"nome": "Farm de Materiais", "emoji": "📦", "cor": 0x27ae60},
-}
 
-class NickModal(discord.ui.Modal, title="Finalizar Pedido"):
-    nick = discord.ui.TextInput(label="Qual o seu Nick no jogo?", placeholder="Ex: mrvoid157", required=False)
-
-    def __init__(self, pid: str):
-        super().__init__()
-        self.pid = pid
-
-    async def on_submit(self, interaction: discord.Interaction):
-        # Resposta imediata para evitar erro de timeout
-        await interaction.response.defer(ephemeral=True)
-        cog = interaction.client.get_cog("Shop")
-        if cog:
-            await cog.abrir_canal(interaction, self.pid, self.nick.value or "Não informado")
-
-class Shop(commands.Cog):
-    def __init__(self, bot: commands.Bot):
-        self.bot = bot
-        self.db = bot.db
-
-    @commands.Cog.listener()
-    async def on_interaction(self, interaction: discord.Interaction):
-        if interaction.type != discord.InteractionType.component: return
-        cid = interaction.data.get("custom_id", "")
-        if cid.startswith("shop:"):
-            await interaction.response.send_modal(NickModal(cid.replace("shop:", "")))
-
-    @app_commands.command(name="loja-painel", description="🛒 Envia o painel de compras oficial")
-    async def loja_painel(self, interaction: discord.Interaction):
-        if not await PermissionChecker.check_interaction_permissions(interaction): return
-
-        embed = discord.Embed(
-            title="🌑 𝐕𝐎𝐈𝐃 𝐒𝐭𝐨𝐫𝐞 | Loja Oficial",
-            description=(
-                "Seja bem-vindo à nossa loja oficial! 🛒\n\n"
-                "Para realizar um pedido, clique no botão do serviço desejado abaixo.\n"
-                "Um canal de atendimento exclusivo será aberto para você.\n\n"
-                "🚀 **Como funciona:**\n"
-                "1️⃣ Clique no botão do produto\n"
-                "2️⃣ Informe seu nick no formulário\n"
-                "3️⃣ Combine os detalhes no ticket\n"
-                "4️⃣ Realize o pagamento via PIX\n\n"
-                "💳 **Tabela de Preços**\n"
-                "⚙️ **Engrenagem V4** — R$ 29,90\n"
-                "🍎 **Frutas** — R$ 15,00\n"
-                "⬆️ **Levels** — R$ 19,90\n"
-                "💎 **Fragmentos** — R$ 12,00\n"
-                "💰 **Money / Beli** — R$ 9,90\n"
-                "📦 **Farm de Materiais** — R$ 24,90"
+class ServiceSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(
+                label="Engrenagem V4",
+                value="engrenagem_v4",
+                description="R$ 29,90 • Desbloqueie a engrenagem V4",
+                emoji="⚙️"
             ),
-            color=0x000000
+            discord.SelectOption(
+                label="Frutas do Estoque",
+                value="frutas",
+                description="A partir de R$ 15,00 • Frutas físicas e permanentes",
+                emoji="🍎"
+            ),
+            discord.SelectOption(
+                label="Up de Levels",
+                value="levels",
+                description="R$ 19,90 • Serviço de subida de nível rápida",
+                emoji="⬆️"
+            ),
+            discord.SelectOption(
+                label="Fragmentos",
+                value="fragmentos",
+                description="R$ 12,00 • Pacotes de fragmentos",
+                emoji="💎"
+            ),
+            discord.SelectOption(
+                label="Money / Beli",
+                value="money_beli",
+                description="R$ 9,90 • Farm de Beli na sua conta",
+                emoji="💰"
+            ),
+            discord.SelectOption(
+                label="Farm de Materiais",
+                value="farm_materiais",
+                description="R$ 24,90 • Materiais raros e ossos",
+                emoji="📦"
+            ),
+            discord.SelectOption(
+                label="Dúvidas & Suporte Geral",
+                value="suporte",
+                description="Fale diretamente com a gerência",
+                emoji="💬"
+            )
+        ]
+        super().__init__(
+            placeholder="🛒 Selecione o produto/serviço desejado...",
+            min_values=1,
+            max_values=1,
+            custom_id="shop_panel_select",
+            options=options
         )
-        embed.set_footer(text="🌑 VOID Store | Atendimento Rápido e Seguro")
-        
-        view = discord.ui.View(timeout=None)
-        for pid, p in PRODUTOS.items():
-            view.add_item(discord.ui.Button(label=p["nome"], style=discord.ButtonStyle.blurple, emoji=p["emoji"], custom_id=f"shop:{pid}"))
-        
-        await interaction.channel.send(embed=embed, view=view)
-        await interaction.response.send_message("✅ Painel enviado!", ephemeral=True)
 
-    async def abrir_canal(self, interaction: discord.Interaction, pid: str, nick: str):
+    async def callback(self, interaction: discord.Interaction):
         guild = interaction.guild
         user = interaction.user
-        p = PRODUTOS[pid]
-        
-        cat = guild.get_channel(config.TICKET_CATEGORY_ID)
-        ch_name = f"🛒-{pid}-{user.name}".lower()[:50]
+        service_key = self.values[0]
 
-        for ch in cat.text_channels:
-            if ch.name == ch_name:
-                return await interaction.followup.send(f"⚠️ Você já tem um ticket aberto: {ch.mention}", ephemeral=True)
+        channel_name = f"🛒-{service_key.replace('_', '-')}-{user.name.lower()}"
 
+        # 1. Verifica se já existe carrinho aberto
+        existing_channel = discord.utils.get(guild.channels, name=channel_name)
+        if existing_channel:
+            await interaction.response.send_message(
+                f"❌ **Você já possui um atendimento aberto nesta categoria!** Acesse {existing_channel.mention}.",
+                ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        # 2. Configuração de Permissões Totalmente Privadas
         overwrites = {
-            guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True),
-            guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, manage_channels=True)
+            guild.default_role: discord.PermissionOverwrite(read_messages=False, view_channel=False),
+            user: discord.PermissionOverwrite(
+                read_messages=True,
+                view_channel=True,
+                send_messages=True,
+                attach_files=True,
+                embed_links=True
+            ),
+            guild.me: discord.PermissionOverwrite(
+                read_messages=True,
+                view_channel=True,
+                send_messages=True,
+                manage_channels=True
+            )
         }
-        for rid in PermissionChecker.CARGOS_ADM:
-            role = guild.get_role(rid)
-            if role: overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
 
-        channel = await cat.create_text_channel(name=ch_name, overwrites=overwrites, topic=f"Dono: {user.id}")
+        # Concede acesso privado apenas aos cargos da Administração (VOID Store)
+        for role_id in [1550096907739857079, 1550097139093209139]:
+            role = guild.get_role(role_id)
+            if role:
+                overwrites[role] = discord.PermissionOverwrite(read_messages=True, view_channel=True, send_messages=True)
 
-        embed = discord.Embed(title=f"{p['emoji']} Novo Pedido — {p['nome']}", color=p['cor'])
-        embed.add_field(name="🎮 Nick", value=f"`{nick}`", inline=True)
-        embed.add_field(name="📦 Produto", value=p['nome'], inline=True)
-        embed.add_field(name="💬 Instrução", value="Aguarde um staff te atender. Diga o que deseja e peça o PIX.", inline=False)
+        # 3. Localiza a categoria "PEDIDOS"
+        category = discord.utils.find(
+            lambda c: "PEDIDOS" in c.name.upper() and isinstance(c, discord.CategoryChannel),
+            guild.categories
+        )
+
+        # 4. Criação do Canal Privado
+        cart_channel = await guild.create_text_channel(
+            name=channel_name,
+            category=category,
+            overwrites=overwrites,
+            topic=f"Atendimento Privado: {user.display_name} | Item: {service_key.upper()}"
+        )
+
+        # 5. Embed do Carrinho Interno
+        embed_ticket = discord.Embed(
+            title="🌑 VOID STORE — CARRINHO DE COMPRAS",
+            description=(
+                f"Olá {user.mention}, bem-vindo ao seu atendimento privado!\n\n"
+                f"📌 **Serviço Selecionado:** `{service_key.replace('_', ' ').upper()}`\n\n"
+                f"**Como proceder:**\n"
+                f"1️⃣ Envie o seu nick do Roblox no chat.\n"
+                f"2️⃣ Aguarde a confirmação de disponibilidade da equipe.\n"
+                f"3️⃣ O pagamento será realizado via **PIX** de forma rápida e segura.\n\n"
+                f"🔒 *Apenas você e a gerência possuem acesso a este canal.*"
+            ),
+            color=discord.Color.from_rgb(15, 15, 15)
+        )
+        if guild.icon:
+            embed_ticket.set_thumbnail(url=guild.icon.url)
+        embed_ticket.set_footer(text="🌑 VOID Store • Sistema Automático de Vendas")
+
+        class CloseCartView(discord.ui.View):
+            def __init__(self):
+                super().__init__(timeout=None)
+
+            @discord.ui.button(label="Cancelar / Fechar Carrinho", style=discord.ButtonStyle.red, emoji="🔒")
+            async def close(self, inner_interaction: discord.Interaction, inner_button: discord.ui.Button):
+                await inner_interaction.response.send_message("🔒 Encerrando o carrinho em 5 segundos...")
+                import asyncio
+                await asyncio.sleep(5)
+                await inner_interaction.channel.delete()
+
+        await cart_channel.send(content=f"{user.mention}", embed=embed_ticket, view=CloseCartView())
+
+        await interaction.followup.send(
+            f"✅ **Carrinho privado criado com sucesso!** Acesse {cart_channel.mention} para concluir sua compra.",
+            ephemeral=True
+        )
+
+
+class ServicePanelView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(ServiceSelect())
+
+
+class Shop(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @app_commands.command(name="loja-painel", description="Envia o painel principal de compras e serviços da VOID Store")
+    @commands.has_permissions(administrator=True)
+    async def loja_painel(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="🌑 𝐕𝐎𝐈𝐃 𝐒𝐭𝐨𝐫𝐞 — Loja Oficial & Atendimento",
+            description=(
+                "Seja bem-vindo à **VOID Store**! Seu lugar ideal para adquirir serviços e itens para **Blox Fruits** com total segurança, rapidez e o melhor preço do mercado.\n\n"
+                "═══════════════════════════════════════\n"
+                "📋 **TABELA DE PREÇOS & SERVIÇOS**\n"
+                "═══════════════════════════════════════\n"
+                "⚙️ **Engrenagem V4** ➔ `R$ 29,90`\n"
+                "🍎 **Frutas (Estoque)** ➔ `A partir de R$ 15,00`\n"
+                "⬆️ **Up de Levels** ➔ `R$ 19,90`\n"
+                "💎 **Fragmentos** ➔ `R$ 12,00`\n"
+                "💰 **Money / Beli** ➔ `R$ 9,90`\n"
+                "📦 **Farm de Materiais** ➔ `R$ 24,90`\n\n"
+                "═══════════════════════════════════════\n"
+                "🚀 **COMO REALIZAR O SEU PEDIDO?**\n"
+                "1️⃣ **Selecione o serviço** desejado no menu suspenso abaixo.\n"
+                "2️⃣ Um **canal 100% privado** será aberto na categoria `PEDIDOS`.\n"
+                "3️⃣ Siga as instruções do chat para efetuar o pagamento via **PIX**.\n"
+                "═══════════════════════════════════════"
+            ),
+            color=discord.Color.from_rgb(15, 15, 15)
+        )
         
-        view = discord.ui.View(timeout=None)
-        view.add_item(discord.ui.Button(label="Fechar Canal", style=discord.ButtonStyle.red, emoji="🔒", custom_id="svc:fechar"))
-        view.add_item(discord.ui.Button(label="Gerar PIX", style=discord.ButtonStyle.green, emoji="💳", custom_id="canal:pix"))
+        if interaction.guild and interaction.guild.icon:
+            embed.set_thumbnail(url=interaction.guild.icon.url)
+            
+        embed.set_footer(text="🌑 VOID Store • Atendimento Automático, Rápido e Seguro")
 
-        await channel.send(content=f"{user.mention} | <@&{PermissionChecker.CARGOS_ADM[0]}>", embed=embed, view=view)
-        await interaction.followup.send(f"✅ Ticket aberto: {channel.mention}", ephemeral=True)
+        await interaction.channel.send(embed=embed, view=ServicePanelView())
+        await interaction.response.send_message("✅ Painel enviado com sucesso!", ephemeral=True)
 
-async def setup(bot: commands.Bot):
+
+async def setup(bot):
     await bot.add_cog(Shop(bot))

@@ -17,7 +17,6 @@ from config import config
 # CONFIGURAÇÃO DOS PRODUTOS
 # ====================================
 
-# Lista apenas com os IDs e Nomes (Labels que aparecerão nos botões)
 PRODUTOS = {
     "v4": {"nome": "Engrenagem V4", "emoji": "⚙️", "cor": 0x2b2d31},
     "frutas": {"nome": "Frutas", "emoji": "🍎", "cor": 0x9b59b6},

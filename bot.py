@@ -91,13 +91,15 @@ class VoidBot(commands.Bot):
         cog_files = [
             "welcome",
             "tickets",
+            "ticket_logs",          # NOVO (Transcript e Logs de Tickets)
+            "reports",              # NOVO (Relatórios da Staff)
             "orders",
             "shop",
             "services",
             "stock_display",
             "pix",
             "vip_booster_panels",   # NOVO
-            "support",               # NOVO
+            "support",              # NOVO
             "roles",
             "vip",
             "booster",

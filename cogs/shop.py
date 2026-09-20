@@ -57,7 +57,23 @@ class Shop(commands.Cog):
 
         embed = discord.Embed(
             title="🌑 𝐕𝐎𝐈𝐃 𝐒𝐭𝐨𝐫𝐞 | Loja Oficial",
-            description="Selecione um produto abaixo para iniciar seu atendimento.",
+            description="""Seja bem-vindo à nossa loja oficial! 🛒
+
+Para realizar um pedido, clique no botão do serviço desejado abaixo.
+Um canal de atendimento exclusivo será aberto para você.
+
+🚀 Como funciona:
+1️⃣ Clique no botão do produto
+2️⃣ Informe seu nick no formulário
+3️⃣ Combine os detalhes no ticket
+4️⃣ Realize o pagamento via PIX
+💳 Tabela de Preços
+⚙️ Engrenagem V4 — R$ 29,90
+🍎 Frutas — R$ 15,00
+⬆️ Levels — R$ 19,90
+💎 Fragmentos — R$ 12,00
+💰 Money / Beli — R$ 9,90
+📦 Farm de Materiais — R$ 24,90""",
             color=0x000000
         )
         

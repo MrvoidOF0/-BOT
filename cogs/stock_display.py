@@ -3,9 +3,8 @@
 """
 import discord
 from discord.ext import commands
-from utils.permissions import PermissionChecker
 
-# ID do canal de estoque definido diretamente no código
+# ID do canal de estoque fixado
 STOCK_CHANNEL_ID = 1549948220317106186
 
 
@@ -22,7 +21,7 @@ class BuyButton(discord.ui.View):
     )
     async def buy_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
-            f"🛒 Iniciaste a compra de **{self.product_name}**. Verifica as tuas mensagens privadas!",
+            f"🛒 Você iniciou a compra de **{self.product_name}**. Verifique seu carrinho!",
             ephemeral=True
         )
 
@@ -33,30 +32,32 @@ class StockDisplay(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        # 1. Ignorar mensagens do próprio bot ou de outros bots
+        # 1. Ignora bots
         if message.author.bot:
             return
 
-        # 2. Verificar se a mensagem foi enviada no canal correto (#estoque)
+        # 2. Filtra somente mensagens no canal #estoque
         if message.channel.id != STOCK_CHANNEL_ID:
             return
 
-        # 3. Verificar permissões do autor
-        if not PermissionChecker.has_authorized_role(message.author):
-            return
+        # 3. Permissão: apenas administradores ou membros com gerência de mensagens
+        if isinstance(message.author, discord.Member):
+            perms = message.channel.permissions_for(message.author)
+            if not (perms.administrator or perms.manage_messages):
+                return
 
-        # 4. Validar se a mensagem tem texto
+        # 4. Garante que há texto na mensagem
         content = message.content.strip() if message.content else ""
         if not content:
             return
 
-        # 5. Apagar a mensagem original enviada pelo utilizador/admin
+        # 5. Apaga a mensagem original
         try:
             await message.delete()
-        except Exception as e:
-            print(f"[ESTOQUE] Não foi possível apagar a mensagem original: {e}")
+        except Exception:
+            pass
 
-        # 6. Criar o Embed formatado
+        # 6. Monta o Embed do Produto
         embed = discord.Embed(
             title="📦 NOVO ITEM EM ESTOQUE",
             description=content,
@@ -66,13 +67,13 @@ class StockDisplay(commands.Cog):
         if message.guild and message.guild.icon:
             embed.set_author(name=message.guild.name, icon_url=message.guild.icon.url)
             
-        embed.set_footer(text="🌑 VOID Store • Clica no botão abaixo para adquirir")
+        embed.set_footer(text="🌑 VOID Store • Clique no botão abaixo para adquirir")
 
-        # 7. Obter a primeira linha como título do produto para o botão
+        # 7. Define o título do produto para o botão
         product_title = content.split("\n")[0]
         view = BuyButton(product_name=product_title)
 
-        # 8. Enviar o Embed com o Botão
+        # 8. Publica o Embed com o botão
         await message.channel.send(embed=embed, view=view)
 
 

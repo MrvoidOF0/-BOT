@@ -1,9 +1,14 @@
 """
 🌑 VOID Store Bot - Painel Oficial /loja-painel
 """
+import io
+import asyncio
 import discord
 from discord import app_commands
 from discord.ext import commands
+
+# ID do canal para envio dos transcripts de atendimento
+TICKET_LOGS_CHANNEL_ID = 1549934937002614935
 
 
 class ServiceSelect(discord.ui.Select):
@@ -64,10 +69,11 @@ class ServiceSelect(discord.ui.Select):
         guild = interaction.guild
         user = interaction.user
         service_key = self.values[0]
+        service_label = service_key.replace('_', ' ').upper()
 
         channel_name = f"🛒-{service_key.replace('_', '-')}-{user.name.lower()}"
 
-        # 1. Verifica se já existe carrinho aberto
+        # 1. Verifica se já existe carrinho/canal aberto para este usuário
         existing_channel = discord.utils.get(guild.channels, name=channel_name)
         if existing_channel:
             await interaction.response.send_message(
@@ -102,18 +108,19 @@ class ServiceSelect(discord.ui.Select):
             if role:
                 overwrites[role] = discord.PermissionOverwrite(read_messages=True, view_channel=True, send_messages=True)
 
-        # 3. Localiza a categoria "PEDIDOS"
-        category = discord.utils.find(
-            lambda c: "PEDIDOS" in c.name.upper() and isinstance(c, discord.CategoryChannel),
-            guild.categories
+        # 3. Criação da CATEGORIA PRIVADA exclusiva para o assunto/cliente
+        category_name = f"🔒 │ {service_label} - {user.name}"
+        ticket_category = await guild.create_category_channel(
+            name=category_name,
+            overwrites=overwrites
         )
 
-        # 4. Criação do Canal Privado
+        # 4. Criação do CANAL PRIVADO dentro da categoria
         cart_channel = await guild.create_text_channel(
             name=channel_name,
-            category=category,
+            category=ticket_category,
             overwrites=overwrites,
-            topic=f"Atendimento Privado: {user.display_name} | Item: {service_key.upper()}"
+            topic=f"Atendimento Privado: {user.display_name} | Item: {service_label}"
         )
 
         # 5. Embed do Carrinho Interno
@@ -121,12 +128,12 @@ class ServiceSelect(discord.ui.Select):
             title="🌑 VOID STORE — CARRINHO DE COMPRAS",
             description=(
                 f"Olá {user.mention}, bem-vindo ao seu atendimento privado!\n\n"
-                f"📌 **Serviço Selecionado:** `{service_key.replace('_', ' ').upper()}`\n\n"
+                f"📌 **Serviço Selecionado:** `{service_label}`\n\n"
                 f"**Como proceder:**\n"
                 f"1️⃣ Envie o seu nick do Roblox no chat.\n"
                 f"2️⃣ Aguarde a confirmação de disponibilidade da equipe.\n"
                 f"3️⃣ O pagamento será realizado via **PIX** de forma rápida e segura.\n\n"
-                f"🔒 *Apenas você e a gerência possuem acesso a este canal.*"
+                f"🔒 *Esta categoria e canal são 100% privados entre você e a gerência.*"
             ),
             color=discord.Color.from_rgb(15, 15, 15)
         )
@@ -134,21 +141,67 @@ class ServiceSelect(discord.ui.Select):
             embed_ticket.set_thumbnail(url=guild.icon.url)
         embed_ticket.set_footer(text="🌑 VOID Store • Sistema Automático de Vendas")
 
+        # 6. View para encerrar o atendimento e gerar transcript
         class CloseCartView(discord.ui.View):
-            def __init__(self):
+            def __init__(self, opener_user: discord.User, service_name: str):
                 super().__init__(timeout=None)
+                self.opener_user = opener_user
+                self.service_name = service_name
 
             @discord.ui.button(label="Cancelar / Fechar Carrinho", style=discord.ButtonStyle.red, emoji="🔒")
             async def close(self, inner_interaction: discord.Interaction, inner_button: discord.ui.Button):
-                await inner_interaction.response.send_message("🔒 Encerrando o carrinho em 5 segundos...")
-                import asyncio
-                await asyncio.sleep(5)
-                await inner_interaction.channel.delete()
+                await inner_interaction.response.send_message("🔒 **Gerando transcript e encerrando atendimento em 5 segundos...**")
+                
+                channel = inner_interaction.channel
+                category = channel.category
 
-        await cart_channel.send(content=f"{user.mention}", embed=embed_ticket, view=CloseCartView())
+                # Coleta do Histórico de Mensagens
+                messages = []
+                async for msg in channel.history(limit=1000, oldest_first=True):
+                    time_str = msg.created_at.strftime("%d/%m/%Y %H:%M:%S")
+                    content = msg.content if msg.content else "[Sem Texto / Anexo ou Embed]"
+                    attachments = f" | Anexos: {[a.url for a in msg.attachments]}" if msg.attachments else ""
+                    messages.append(f"[{time_str}] {msg.author.name} ({msg.author.id}): {content}{attachments}")
+
+                if not messages:
+                    messages.append("Nenhuma mensagem registrada neste atendimento.")
+
+                transcript_text = f"=== TRANSCRIPT VOID STORE — CANAL: #{channel.name} ===\n\n" + "\n".join(messages)
+                transcript_file = discord.File(
+                    fp=io.BytesIO(transcript_text.encode("utf-8")),
+                    filename=f"transcript-{channel.name}.txt"
+                )
+
+                # Envio para o canal de logs
+                log_channel = discord.utils.get(guild.text_channels, name="ticket-logs")
+                if not log_channel:
+                    log_channel = guild.get_channel(TICKET_LOGS_CHANNEL_ID)
+
+                if log_channel:
+                    embed_log = discord.Embed(
+                        title="📄 TRANSCRIPT DE ATENDIMENTO",
+                        color=discord.Color.from_rgb(15, 15, 15)
+                    )
+                    embed_log.add_field(name="👤 Cliente:", value=f"{self.opener_user.mention} (`{self.opener_user.id}`)", inline=True)
+                    embed_log.add_field(name="🛡️ Encerrado por:", value=f"{inner_interaction.user.mention}", inline=True)
+                    embed_log.add_field(name="📦 Serviço:", value=f"`{self.service_name}`", inline=True)
+                    embed_log.add_field(name="💬 Canal Encerrado:", value=f"`#{channel.name}`", inline=False)
+                    embed_log.set_footer(text="🌑 VOID Store • Sistema de Registro de Tickets")
+
+                    await log_channel.send(embed=embed_log, file=transcript_file)
+
+                await asyncio.sleep(5)
+                
+                # Exclusão do canal e da categoria criada
+                await channel.delete()
+                if category and len(category.channels) == 0:
+                    await category.delete()
+
+        close_view = CloseCartView(opener_user=user, service_name=service_label)
+        await cart_channel.send(content=f"{user.mention}", embed=embed_ticket, view=close_view)
 
         await interaction.followup.send(
-            f"✅ **Carrinho privado criado com sucesso!** Acesse {cart_channel.mention} para concluir sua compra.",
+            f"✅ **Categoria e carrinho privado criados com sucesso!** Acesse {cart_channel.mention} para concluir sua compra.",
             ephemeral=True
         )
 
@@ -182,7 +235,7 @@ class Shop(commands.Cog):
                 "═══════════════════════════\n"
                 "🚀 **COMO REALIZAR O SEU PEDIDO?**\n"
                 "1️⃣ **Selecione o serviço** desejado no menu suspenso abaixo.\n"
-                "2️⃣ Um **canal 100% privado** será aberto na categoria `PEDIDOS`.\n"
+                "2️⃣ Uma **categoria e canal 100% privados** serão criados automaticamente.\n"
                 "3️⃣ Siga as instruções do chat para efetuar o pagamento via **PIX**.\n"
                 "═══════════════════════════"
             ),

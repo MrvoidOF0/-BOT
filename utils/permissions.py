@@ -21,8 +21,26 @@ class PermissionChecker:
         if PermissionChecker.is_authorized(interaction.user):
             return True
         
-        await interaction.response.send_message(
-            "❌ **Acesso Negado.** Somente a gerência da VOID Store pode usar este comando.",
-            ephemeral=True
-        )
+        # Evita responder duas vezes se a interação já tiver sido respondida/diferida
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                "❌ **Acesso Negado.** Somente a gerência da VOID Store pode usar este comando.",
+                ephemeral=True
+            )
+        else:
+            await interaction.followup.send(
+                "❌ **Acesso Negado.** Somente a gerência da VOID Store pode usar este comando.",
+                ephemeral=True
+            )
         return False
+
+    # Métodos utilitários para compatibilidade com cogs legados
+    @classmethod
+    async def check(cls, interaction: Interaction) -> bool:
+        """Alias para check_interaction_permissions chamado pelos cogs"""
+        return await cls.check_interaction_permissions(interaction)
+
+    @classmethod
+    async def check_permissions(cls, interaction: Interaction) -> bool:
+        """Alias alternativo para checagem em interações"""
+        return await cls.check_interaction_permissions(interaction)

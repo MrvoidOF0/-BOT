@@ -1,48 +1,73 @@
 """
-🌑 VOID Store Bot - Sistema de Permissões Blindado
+🌑 VOID Store Bot - Exibição e Auto-Embed de Estoque
 """
+import os
 import discord
-from discord import Interaction, Member
+from discord.ext import commands
+from utils.permissions import PermissionChecker
 
-class PermissionChecker:
-    # IDs DOS CARGOS QUE PODEM TUDO NO BOT
-    CARGOS_ADM = [1550096907739857079, 1550097139093209139]
 
-    @staticmethod
-    def is_authorized(member: Member) -> bool:
-        """Verifica se é Admin ou tem os cargos autorizados"""
-        if member.guild_permissions.administrator:
-            return True
-        return any(role.id in PermissionChecker.CARGOS_ADM for role in member.roles)
+class BuyButton(discord.ui.View):
+    def __init__(self, product_name: str):
+        super().__init__(timeout=None)
+        self.product_name = product_name
 
-    @classmethod
-    def has_authorized_role(cls, member: Member) -> bool:
-        """Alias para eventos on_message no stock_display"""
-        return cls.is_authorized(member)
+    @discord.ui.button(label="Comprar", style=discord.ButtonStyle.green, custom_id="btn_comprar_estoque", emoji="🛒")
+    async def buy_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_message(
+            f"🛒 Você iniciou a compra de **{self.product_name}**. Verifique seus canais/carrinho!",
+            ephemeral=True
+        )
 
-    @staticmethod
-    async def check_interaction_permissions(interaction: Interaction) -> bool:
-        """Bloqueia na hora e avisa se não for autorizado"""
-        if PermissionChecker.is_authorized(interaction.user):
-            return True
-        
-        if not interaction.response.is_done():
-            await interaction.response.send_message(
-                "❌ **Acesso Negado.** Somente a gerência da VOID Store pode usar este comando.",
-                ephemeral=True
-            )
-        else:
-            await interaction.followup.send(
-                "❌ **Acesso Negado.** Somente a gerência da VOID Store pode usar este comando.",
-                ephemeral=True
-            )
-        return False
 
-    # Métodos de compatibilidade
-    @classmethod
-    async def check(cls, interaction: Interaction) -> bool:
-        return await cls.check_interaction_permissions(interaction)
+class StockDisplay(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+        # Pega o ID do canal do arquivo .env
+        env_channel_id = os.getenv("STOCK_CHANNEL_ID")
+        self.stock_channel_id = int(env_channel_id) if env_channel_id and env_channel_id.isdigit() else None
 
-    @classmethod
-    async def check_permissions(cls, interaction: Interaction) -> bool:
-        return await cls.check_interaction_permissions(interaction)
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        # Ignora bots e verifica se o ID do canal foi configurado
+        if message.author.bot or not self.stock_channel_id:
+            return
+
+        # Verifica se a mensagem foi enviada no canal correto
+        if message.channel.id != self.stock_channel_id:
+            return
+
+        # Valida permissões do autor da mensagem
+        if not PermissionChecker.has_authorized_role(message.author):
+            return
+
+        content = message.content.strip()
+        if not content:
+            return
+
+        # Apaga a mensagem digitada pelo admin/gerente
+        try:
+            await message.delete()
+        except discord.HTTPException:
+            pass
+
+        # Monta o Embed do Produto
+        embed = discord.Embed(
+            title="📦 NOVO ITEM EM ESTOQUE",
+            description=content,
+            color=discord.Color.from_rgb(15, 15, 15)
+        )
+        if message.guild and message.guild.icon:
+            embed.set_author(name=message.guild.name, icon_url=message.guild.icon.url)
+        embed.set_footer(text="🌑 VOID Store • Clique no botão abaixo para adquirir")
+
+        # Nome do produto para o botão (primeira linha do texto)
+        product_title = content.split("\n")[0]
+        view = BuyButton(product_name=product_title)
+
+        await message.channel.send(embed=embed, view=view)
+
+
+# Função obrigatória para o discord.py carregar o cog
+async def setup(bot):
+    await bot.add_cog(StockDisplay(bot))

@@ -1,22 +1,31 @@
 """
-🌑 VOID Store Bot - Exibição e Auto-Embed de Estoque (com Debug)
+🌑 VOID Store Bot - Exibição Automática de Estoque
 """
-import os
 import discord
 from discord.ext import commands
 from utils.permissions import PermissionChecker
+
+# ID do canal de estoque definido diretamente no código
+STOCK_CHANNEL_ID = 1549948220317106186
+
 
 class BuyButton(discord.ui.View):
     def __init__(self, product_name: str):
         super().__init__(timeout=None)
         self.product_name = product_name
 
-    @discord.ui.button(label="Comprar", style=discord.ButtonStyle.green, custom_id="btn_comprar_estoque", emoji="🛒")
+    @discord.ui.button(
+        label="Comprar",
+        style=discord.ButtonStyle.green,
+        custom_id="btn_comprar_estoque",
+        emoji="🛒"
+    )
     async def buy_callback(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_message(
-            f"🛒 Você iniciou a compra de **{self.product_name}**. Verifique seus canais/carrinho!",
+            f"🛒 Iniciaste a compra de **{self.product_name}**. Verifica as tuas mensagens privadas!",
             ephemeral=True
         )
+
 
 class StockDisplay(commands.Cog):
     def __init__(self, bot):
@@ -24,53 +33,48 @@ class StockDisplay(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        # Ignora bots
+        # 1. Ignorar mensagens do próprio bot ou de outros bots
         if message.author.bot:
             return
 
-        # Pega o ID configurado na Railway ou usa o ID direto do seu canal de estoque
-        env_channel = os.getenv("STOCK_CHANNEL_ID")
-        stock_channel_id = int(env_channel) if env_channel and env_channel.isdigit() else 1549948220317106186
-
-        # Se a mensagem foi em outro canal, ignora
-        if message.channel.id != stock_channel_id:
+        # 2. Verificar se a mensagem foi enviada no canal correto (#estoque)
+        if message.channel.id != STOCK_CHANNEL_ID:
             return
 
-        print(f"[DEBUG STOCK] Mensagem recebida no canal de estoque de: {message.author.name}")
-
-        # Verifica se o conteúdo foi lido
-        if not message.content:
-            print("[DEBUG STOCK] ERRO: O conteúdo da mensagem veio vazio! Ative a MESSAGE CONTENT INTENT no Portal do Discord.")
-            return
-
-        # Verifica permissão
+        # 3. Verificar permissões do autor
         if not PermissionChecker.has_authorized_role(message.author):
-            print(f"[DEBUG STOCK] Usuário {message.author.name} não tem permissão para enviar no estoque.")
             return
 
-        print("[DEBUG STOCK] Criando Embed e apagando mensagem original...")
+        # 4. Validar se a mensagem tem texto
+        content = message.content.strip() if message.content else ""
+        if not content:
+            return
 
-        # Apaga a mensagem enviada pelo usuário
+        # 5. Apagar a mensagem original enviada pelo utilizador/admin
         try:
             await message.delete()
         except Exception as e:
-            print(f"[DEBUG STOCK] Erro ao deletar mensagem: {e}")
+            print(f"[ESTOQUE] Não foi possível apagar a mensagem original: {e}")
 
-        # Monta o Embed
+        # 6. Criar o Embed formatado
         embed = discord.Embed(
             title="📦 NOVO ITEM EM ESTOQUE",
-            description=message.content,
+            description=content,
             color=discord.Color.from_rgb(15, 15, 15)
         )
+        
         if message.guild and message.guild.icon:
             embed.set_author(name=message.guild.name, icon_url=message.guild.icon.url)
-        embed.set_footer(text="🌑 VOID Store • Clique no botão abaixo para adquirir")
+            
+        embed.set_footer(text="🌑 VOID Store • Clica no botão abaixo para adquirir")
 
-        product_title = message.content.split("\n")[0]
+        # 7. Obter a primeira linha como título do produto para o botão
+        product_title = content.split("\n")[0]
         view = BuyButton(product_name=product_title)
 
+        # 8. Enviar o Embed com o Botão
         await message.channel.send(embed=embed, view=view)
-        print("[DEBUG STOCK] Embed enviado com sucesso!")
+
 
 async def setup(bot):
     await bot.add_cog(StockDisplay(bot))

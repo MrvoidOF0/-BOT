@@ -27,14 +27,14 @@ class BuyButton(discord.ui.View):
         existing_channel = discord.utils.get(guild.channels, name=channel_name)
         if existing_channel:
             await interaction.response.send_message(
-                f"❌ **Já tens um carrinho aberto!** Acede a {existing_channel.mention} para concluir a compra.",
+                f"❌ **Você já possui um carrinho aberto!** Acesse {existing_channel.mention} para concluir sua compra.",
                 ephemeral=True
             )
             return
 
         await interaction.response.defer(ephemeral=True)
 
-        # Configuração de privacidade absoluta
+        # Permissões do canal privado
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False, view_channel=False),
             user: discord.PermissionOverwrite(read_messages=True, view_channel=True, send_messages=True, attach_files=True),
@@ -58,9 +58,9 @@ class BuyButton(discord.ui.View):
         embed_cart = discord.Embed(
             title="🛒 CARRINHO PRIVADO — VOID STORE",
             description=(
-                f"Olá {user.mention}, o teu carrinho privado foi criado com sucesso!\n\n"
+                f"Olá {user.mention}, seu carrinho privado foi criado com sucesso!\n\n"
                 f"📦 **Produto Selecionado:**\n`{self.product_name}`\n\n"
-                f"Aguarda um atendente ou envia a mensagem com os detalhes da compra."
+                f"Aguarde um atendente ou envie mensagem para finalizar."
             ),
             color=discord.Color.from_rgb(15, 15, 15)
         )
@@ -72,7 +72,7 @@ class BuyButton(discord.ui.View):
 
             @discord.ui.button(label="Cancelar / Fechar Carrinho", style=discord.ButtonStyle.red, emoji="🔒")
             async def close(self, inner_interaction: discord.Interaction, inner_button: discord.ui.Button):
-                await inner_interaction.response.send_message("🔒 A fechar carrinho em 5 segundos...")
+                await inner_interaction.response.send_message("🔒 Fechando carrinho em 5 segundos...")
                 import asyncio
                 await asyncio.sleep(5)
                 await inner_interaction.channel.delete()
@@ -80,7 +80,7 @@ class BuyButton(discord.ui.View):
         await cart_channel.send(content=f"{user.mention}", embed=embed_cart, view=CloseCartView())
 
         await interaction.followup.send(
-            f"✅ **Carrinho privado criado!** Clica em {cart_channel.mention} para prosseguir.",
+            f"✅ **Carrinho privado criado!** Clique em {cart_channel.mention} para prosseguir.",
             ephemeral=True
         )
 
@@ -94,6 +94,7 @@ class StockDisplay(commands.Cog):
         if message.author.bot or message.channel.id != STOCK_CHANNEL_ID:
             return
 
+        # Verifica se o membro tem permissão
         if isinstance(message.author, discord.Member):
             perms = message.channel.permissions_for(message.author)
             if not (perms.administrator or perms.manage_messages):
@@ -115,7 +116,7 @@ class StockDisplay(commands.Cog):
         )
         if message.guild and message.guild.icon:
             embed.set_author(name=message.guild.name, icon_url=message.guild.icon.url)
-        embed.set_footer(text="🌑 VOID Store • Clica no botão abaixo para adquirir")
+        embed.set_footer(text="🌑 VOID Store • Clique no botão abaixo para adquirir")
 
         product_title = content.split("\n")[0]
         view = BuyButton(product_name=product_title)

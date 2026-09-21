@@ -110,6 +110,7 @@ class VoidBot(commands.Bot):
             "sheets",
             "setup",
             "help",
+            "support",
             "error_handler"
         ]
         

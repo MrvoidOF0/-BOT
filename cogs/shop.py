@@ -8,7 +8,7 @@ from discord import app_commands
 from discord.ext import commands
 
 # ID do canal para envio dos transcripts de atendimento
-TICKET_LOGS_CHANNEL_ID = 1549934937002614935
+TICKET_LOGS_CHANNEL_ID = 1549933790309257226
 
 
 class ServiceSelect(discord.ui.Select):

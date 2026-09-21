@@ -460,7 +460,7 @@ Se o pagamento não estiver confirmado, não confirme.
 Se o cliente tiver uma dúvida simples, responda de forma simples.
 
 **VOID Store • Seu mundo em um só lugar. 🌑**
-
+"""
 
 
 class CloseSupportView(discord.ui.View):
@@ -627,7 +627,7 @@ class SupportSelect(discord.ui.Select):
                 f"📌 **Modalidade Selecionada:** `{mode_label}`\n\n"
                 + (
                     "🤖 **A nossa IA de Suporte está pronta!** Envie a sua dúvida no chat abaixo para ser respondido instantaneamente.\n"
-                    "*(Caso precise falar com a gerência, clique no botão 'Chamar Atendente Humano' abaixo).* "
+                    "*(Caso precise falar com a gerência, clique no botão 'Chamar Atendente Humano' abaixo).*"
                     if is_ai else
                     "👤 **A nossa equipe foi acionada.** Explique a sua dúvida ou problema detalhadamente no chat e aguarde um atendente."
                 )
@@ -682,7 +682,7 @@ class Support(commands.Cog):
 
                     def call_groq():
                         return groq_client.chat.completions.create(
-                            model="llama-3.1-8b-instant",  # Alterado para o modelo ativo e estável da Groq
+                            model="llama-3.1-8b-instant",  # Modelo ativo e estável da Groq
                             messages=chat_history,
                             temperature=0.6,
                             max_tokens=400

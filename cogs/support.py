@@ -507,10 +507,15 @@ class CloseSupportView(discord.ui.View):
             filename=f"transcript-{channel.name}.txt"
         )
 
-        # 2. Envia para o canal de logs correto (ID: 1549933790309257226)
+        # 2. Busca ESTRITAMENTE o canal de logs pelo ID fixo
         log_channel = guild.get_channel(TICKET_LOGS_CHANNEL_ID)
+        
+        # Tenta buscar via API caso não esteja no cache local do bot
         if not log_channel:
-            log_channel = discord.utils.get(guild.text_channels, name="ticket-logs")
+            try:
+                log_channel = await guild.fetch_channel(TICKET_LOGS_CHANNEL_ID)
+            except Exception as e:
+                print(f"❌ Não foi possível encontrar o canal de logs pelo ID {TICKET_LOGS_CHANNEL_ID}: {e}")
 
         if log_channel:
             embed_log = discord.Embed(
@@ -524,6 +529,8 @@ class CloseSupportView(discord.ui.View):
             embed_log.set_footer(text="🌑 VOID Store • Registros do Servidor")
 
             await log_channel.send(embed=embed_log, file=transcript_file)
+        else:
+            print(f"⚠️ ATENÇÃO: O canal de logs com ID {TICKET_LOGS_CHANNEL_ID} não foi encontrado no servidor!")
 
         await asyncio.sleep(5)
         
@@ -531,7 +538,6 @@ class CloseSupportView(discord.ui.View):
         await channel.delete()
         if category and len(category.channels) == 0:
             await category.delete()
-
 
 class SupportSelect(discord.ui.Select):
     """Menu suspenso (Dropdown) para escolha do tipo de atendimento."""

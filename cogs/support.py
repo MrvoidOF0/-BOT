@@ -10,7 +10,7 @@ from discord.ext import commands
 from groq import Groq
 
 # ID do canal onde os transcripts serão gravados
-TICKET_LOGS_CHANNEL_ID = 1549934937002614935
+TICKET_LOGS_CHANNEL_ID = 1549933790309257226
 
 # Inicialização do Cliente Groq
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -461,7 +461,6 @@ Se o cliente tiver uma dúvida simples, responda de forma simples.
 
 **VOID Store • Seu mundo em um só lugar. 🌑**
 
-"""
 
 
 class CloseSupportView(discord.ui.View):
@@ -508,10 +507,10 @@ class CloseSupportView(discord.ui.View):
             filename=f"transcript-{channel.name}.txt"
         )
 
-        # 2. Envia para o canal #ticket-logs
-        log_channel = discord.utils.get(guild.text_channels, name="ticket-logs")
+        # 2. Envia para o canal de logs correto (ID: 1549933790309257226)
+        log_channel = guild.get_channel(TICKET_LOGS_CHANNEL_ID)
         if not log_channel:
-            log_channel = guild.get_channel(TICKET_LOGS_CHANNEL_ID)
+            log_channel = discord.utils.get(guild.text_channels, name="ticket-logs")
 
         if log_channel:
             embed_log = discord.Embed(
@@ -675,16 +674,15 @@ class Support(commands.Cog):
                 try:
                     chat_history = [{"role": "system", "content": SYSTEM_PROMPT}]
                     
-                    # Recupera as últimas mensagens para dar contexto de conversa
+                    # Recupera as últimas mensagens para dar contexto
                     async for msg in message.channel.history(limit=8, oldest_first=True):
                         role = "assistant" if msg.author.bot else "user"
                         if msg.content:
                             chat_history.append({"role": role, "content": msg.content})
 
-                    # Executa a chamada síncrona da Groq numa thread separada para não bloquear o bot
                     def call_groq():
                         return groq_client.chat.completions.create(
-                            model="llama-3.3-70b-versatile",
+                            model="llama-3.1-8b-instant",  # Alterado para o modelo ativo e estável da Groq
                             messages=chat_history,
                             temperature=0.6,
                             max_tokens=400
@@ -719,7 +717,7 @@ class Support(commands.Cog):
         embed.set_footer(text="🌑 VOID Store • Selecione abaixo para abrir o seu ticket")
 
         await interaction.channel.send(embed=embed, view=SupportSelectView())
-        await interaction.followup.send("✅ Painel de suporte com menu suspenso enviado com sucesso!", ephemeral=True)
+        await interaction.followup.send("✅ Painel de suporte enviado com sucesso!", ephemeral=True)
 
 
 async def setup(bot):

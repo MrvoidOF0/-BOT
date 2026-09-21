@@ -1,7 +1,6 @@
 """
-🌑 VOID Store Bot - Serviços (Reescrito)
-Abordagem: sem Views persistentes complexas.
-Tudo via on_interaction para máxima compatibilidade.
+🌑 VOID Store Bot - Serviços (Design Aprimorado)
+Abordagem: Sem Views persistentes complexas (interceptado por custom_id).
 """
 
 import discord
@@ -9,93 +8,74 @@ from discord import app_commands
 from discord.ext import commands
 from typing import Optional
 import asyncio
+import io
 
 from utils.permissions import PermissionChecker
 from utils.logger import logger
 from config import config
 
 # ====================================
-# DADOS DOS SERVIÇOS
+# DADOS DOS SERVIÇOS E CONFIGURAÇÃO VISUAL
 # ====================================
 
 SERVICOS = {
     "frutas": {
         "nome": "🍎 Farm de Frutas",
-        "cor": 0x9b59b6,
+        "cor": 0xA855F7,  # Roxo vibrante
+        "banner": "https://i.imgur.com/8QZ8G9M.png",  # Opcional: Adicione imagem/banner se desejar
         "instrucao": (
-            "**Informe qual fruta e por quantas horas:**\n\n"
-            "• 1 hora — R$ 3,00\n"
-            "• 2 horas — R$ 5,00\n"
-            "• 3 horas — R$ 7,00\n"
-            "• 5 horas — R$ 10,00\n"
-            "• 10 horas — R$ 18,00"
+            "> **Informe os detalhes do seu pedido:**\n"
+            "Qual fruta você deseja focar e por quantas horas prefere o farm?"
         ),
         "opcoes": ["1 hora", "2 horas", "3 horas", "5 horas", "10 horas"],
         "precos": [3.00, 5.00, 7.00, 10.00, 18.00],
     },
     "level": {
         "nome": "⭐ Farm de Level",
-        "cor": 0x3498db,
+        "cor": 0x3B82F6,  # Azul royal
         "instrucao": (
-            "**Informe seu nível atual e qual pacote deseja:**\n\n"
-            "• +100 níveis — R$ 2,00\n"
-            "• +300 níveis — R$ 5,00\n"
-            "• +500 níveis — R$ 8,00\n"
-            "• +1.000 níveis — R$ 14,00\n"
-            "• Level Máximo — R$ 22,00"
+            "> **Informe os detalhes do seu pedido:**\n"
+            "Qual o seu nível atual e qual o pacote escolhido?"
         ),
         "opcoes": ["+100 níveis", "+300 níveis", "+500 níveis", "+1.000 níveis", "Level Máximo"],
         "precos": [2.00, 5.00, 8.00, 14.00, 22.00],
     },
     "materiais": {
         "nome": "🧪 Farm de Materiais",
-        "cor": 0x27ae60,
+        "cor": 0x10B981,  # Verde esmeralda
         "instrucao": (
-            "**Informe qual tipo de material deseja (100 unidades):**\n\n"
-            "• Comuns 100x — R$ 2,00\n"
-            "• Incomuns 100x — R$ 3,00\n"
-            "• Raros 100x — R$ 5,00\n"
-            "• Especiais 100x — R$ 7,00"
+            "> **Informe os detalhes do seu pedido:**\n"
+            "Qual tipo de material você precisa no momento?"
         ),
         "opcoes": ["Comuns 100x", "Incomuns 100x", "Raros 100x", "Especiais 100x"],
         "precos": [2.00, 3.00, 5.00, 7.00],
     },
     "v4": {
-        "nome": "⚙️ V4 / Gear",
-        "cor": 0xe74c3c,
+        "nome": "⚙️ Desbloqueio V4 & Gears",
+        "cor": 0xEF4444,  # Vermelho carmesim
         "instrucao": (
-            "**Informe qual Gear deseja desbloquear:**\n\n"
-            "• Gear 1 — R$ 8,00\n"
-            "• Gear 2 — R$ 8,00\n"
-            "• Gear 3 — R$ 10,00\n"
-            "• Gear 4 — R$ 12,00\n"
-            "• V4 Completa — R$ 30,00"
+            "> **Informe os detalhes do seu pedido:**\n"
+            "Qual Gear ou etapa da V4 você deseja que a equipe realize?"
         ),
         "opcoes": ["Gear 1", "Gear 2", "Gear 3", "Gear 4", "V4 Completa"],
         "precos": [8.00, 8.00, 10.00, 12.00, 30.00],
     },
     "money": {
-        "nome": "💵 Farm de Money",
-        "cor": 0xf39c12,
+        "nome": "💵 Farm de Money (Beli)",
+        "cor": 0xF59E0B,  # Âmbar/Dourado
         "instrucao": (
-            "**Informe qual quantidade de Beli deseja:**\n\n"
-            "• 5M Beli — R$ 4,00\n"
-            "• 10M Beli — R$ 7,00\n"
-            "• 25M Beli — R$ 15,00\n"
-            "• 50M Beli — R$ 27,00"
+            "> **Informe os detalhes do seu pedido:**\n"
+            "Confirme a quantia necessária para iniciar a entrega."
         ),
         "opcoes": ["5M Beli", "10M Beli", "25M Beli", "50M Beli"],
         "precos": [4.00, 7.00, 15.00, 27.00],
     },
     "fragmentos": {
         "nome": "💎 Farm de Fragments",
-        "cor": 0x1abc9c,
+        "cor": 0x06B6D4,  # Ciano reluzente
         "instrucao": (
-            "**Informe qual quantidade de Fragments deseja:**\n\n"
-            "• 5.000 Fragments — R$ 3,00\n"
-            "• 10.000 Fragments — R$ 6,00\n"
-            "• 25.000 Fragments — R$ 13,00\n"
-            "• 50.000 Fragments — R$ 24,00"
+            "> **Informe os detalhes do seu pedido:**\n"
+            "Qual pacote de Fragments você deseja adquirir?"
         ),
         "opcoes": ["5.000 Fragments", "10.000 Fragments", "25.000 Fragments", "50.000 Fragments"],
         "precos": [3.00, 6.00, 13.00, 24.00],
@@ -107,10 +87,10 @@ SERVICOS = {
 # MODAL DE NICK
 # ====================================
 
-class NickModal(discord.ui.Modal, title="Informação da Conta"):
+class NickModal(discord.ui.Modal, title="🌑 VOID Store — Informações"):
     nick = discord.ui.TextInput(
-        label="Nick da sua conta no jogo (opcional)",
-        placeholder="Ex: VoidPlayer123 — deixe vazio se quiser informar depois",
+        label="Nick no jogo (Roblox/Game)",
+        placeholder="Ex: VoidPlayer123 — Deixe em branco se quiser informar depois",
         required=False,
         max_length=100
     )
@@ -137,25 +117,18 @@ class NickModal(discord.ui.Modal, title="Informação da Conta"):
 # ====================================
 
 class Services(commands.Cog):
-    """Sistema de serviços"""
+    """Sistema de gerenciamento e exibição de serviços"""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db = bot.db
 
     # ====================================
-    # INTERCEPTAR TODOS OS BOTÕES
+    # LISTENER INTERCEPTADOR DE INTERAÇÕES
     # ====================================
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
-        """
-        Intercepta TODOS os cliques de botão.
-        Identifica pelo custom_id e roteia para a função correta.
-        Isso elimina o problema de Views persistentes que param
-        de funcionar após reinício.
-        """
-
         if interaction.type != discord.InteractionType.component:
             return
 
@@ -176,7 +149,7 @@ class Services(commands.Cog):
             await self.handle_fechar(interaction)
             return
 
-        # ── Fechar qualquer ticket (tickets.py) ──
+        # ── Fechar qualquer ticket ──
         if custom_id == "ticket:fechar":
             cog = self.bot.get_cog("Tickets")
             if cog:
@@ -212,42 +185,40 @@ class Services(commands.Cog):
                 await cog.abrir_ticket(interaction, tipo)
             return
 
-        # ── Stock: botão comprar ──
+        # ── Stock ──
         if custom_id == "stock:comprar":
             cog = self.bot.get_cog("StockDisplay")
             if cog:
                 await cog.handle_comprar(interaction)
             return
 
-        # ── VIP: assinar ──
+        # ── VIP / Booster ──
         if custom_id == "vip:assinar":
             cog = self.bot.get_cog("VipBoosterPanels")
             if cog:
                 await cog.handle_vip_assinar(interaction)
             return
 
-        # ── Booster: ativar ──
         if custom_id == "booster:ativar":
             cog = self.bot.get_cog("VipBoosterPanels")
             if cog:
                 await cog.handle_booster_ativar(interaction)
             return
 
-        # ── Booster: dúvidas ──
         if custom_id == "booster:duvidas":
             cog = self.bot.get_cog("VipBoosterPanels")
             if cog:
                 await cog.handle_booster_duvidas(interaction)
             return
 
-        # ── Suporte: abrir ──
+        # ── Suporte ──
         if custom_id == "suporte:abrir":
             cog = self.bot.get_cog("Support")
             if cog:
                 await cog.handle_abrir(interaction)
             return
 
-        # ── Fechar canal genérico (vip/booster/suporte) ──
+        # ── Fechar canal genérico ──
         if custom_id == "canal:fechar":
             await self.handle_fechar(interaction)
             return
@@ -255,14 +226,9 @@ class Services(commands.Cog):
         # ── PIX rápido ──
         if custom_id == "canal:pix":
             if not PermissionChecker.is_staff(interaction.user):
-                await interaction.response.send_message(
-                    "❌ Apenas staff.", ephemeral=True
-                )
+                await interaction.response.send_message("❌ Apenas staff pode usar este recurso.", ephemeral=True)
                 return
-            await interaction.response.send_message(
-                "💳 Use `/pix-gerar valor:XX.XX cliente:@usuario`",
-                ephemeral=True
-            )
+            await interaction.response.send_message("💳 **Comando PIX:** `/pix-gerar valor:XX.XX cliente:@usuario`", ephemeral=True)
             return
 
     # ====================================
@@ -288,14 +254,12 @@ class Services(commands.Cog):
 
         category_id = config.TICKET_CATEGORY_ID
         if not category_id:
-            await interaction.followup.send(
-                "❌ Categoria não configurada. Avise um admin.", ephemeral=True
-            )
+            await interaction.followup.send("❌ Categoria de atendimento não configurada.", ephemeral=True)
             return
 
         category = guild.get_channel(category_id)
         if not category or not isinstance(category, discord.CategoryChannel):
-            await interaction.followup.send("❌ Categoria inválida.", ephemeral=True)
+            await interaction.followup.send("❌ Categoria de atendimento inválida.", ephemeral=True)
             return
 
         channel_name = f"{service_id}-{user.name}".lower()[:50]
@@ -303,7 +267,7 @@ class Services(commands.Cog):
         for ch in category.text_channels:
             if ch.name == channel_name:
                 await interaction.followup.send(
-                    f"⚠️ Você já tem um canal deste serviço aberto: {ch.mention}",
+                    f"⚠️ Você já possui um atendimento em andamento para este serviço: {ch.mention}",
                     ephemeral=True
                 )
                 return
@@ -331,37 +295,38 @@ class Services(commands.Cog):
                 topic=f"{data['nome']} | {opcao} | {user.id}"
             )
 
+            # --- EMBED DO CANAL PRIVADO ---
             embed = discord.Embed(
-                title=data["nome"],
+                title=f"🛒 {data['nome']}",
+                description="Seu canal de atendimento exclusivo foi aberto! Confira as informações do seu pedido abaixo e aguarde a equipe.",
                 color=data["cor"],
                 timestamp=discord.utils.utcnow()
             )
             embed.set_thumbnail(url=user.display_avatar.url)
-            embed.add_field(name="👤 Cliente", value=user.mention, inline=True)
-            embed.add_field(name="🎮 Nick no Jogo", value=f"`{nick}`", inline=True)
-            embed.add_field(name="📦 Opção", value=f"`{opcao}`", inline=True)
-            embed.add_field(name="💰 Valor", value=f"`R$ {preco:.2f}`", inline=True)
-            embed.add_field(name="\u200b", value="\u200b", inline=True)
-            embed.add_field(name="\u200b", value="\u200b", inline=True)
-            embed.add_field(name="💬 Próximo passo", value=data["instrucao"], inline=False)
-            embed.set_footer(text="🌑 VOID Store | Atendimento rápido e seguro")
 
-            # Botões usando custom_id simples e fixo
+            embed.add_field(name="👤 **Cliente**", value=user.mention, inline=True)
+            embed.add_field(name="🎮 **Nick no Jogo**", value=f"`{nick}`", inline=True)
+            embed.add_field(name="📦 **Pacote Selecionado**", value=f"`{opcao}`", inline=True)
+            embed.add_field(name="💰 **Valor Total**", value=f"`R$ {preco:.2f}`", inline=True)
+            embed.add_field(name="⚡ **Status**", value="`Aguardando Staff`", inline=True)
+            embed.add_field(name="\u200b", value="\u200b", inline=True) # Espaçador
+
+            embed.add_field(name="📝 **Instruções ao Cliente**", value=data["instrucao"], inline=False)
+            embed.set_footer(text="🌑 VOID Store • Atendimento Seguro e Qualificado", icon_url=guild.icon.url if guild.icon else None)
+
             view = discord.ui.View()
-
             btn_fechar = discord.ui.Button(
-                label="Fechar Canal",
+                label="Encerrar Canal",
                 style=discord.ButtonStyle.red,
                 emoji="🔒",
                 custom_id="svc:fechar"
             )
             btn_pix = discord.ui.Button(
-                label="Gerar PIX",
+                label="Gerar Pagamento PIX",
                 style=discord.ButtonStyle.green,
                 emoji="💳",
                 custom_id="canal:pix"
             )
-
             view.add_item(btn_fechar)
             view.add_item(btn_pix)
 
@@ -374,7 +339,7 @@ class Services(commands.Cog):
             )
 
             await interaction.followup.send(
-                f"✅ Canal criado: {channel.mention}\nNossa equipe responderá em breve!",
+                f"✅ **Atendimento criado:** {channel.mention}\nSiga para o canal para concluir seu pedido!",
                 ephemeral=True
             )
 
@@ -385,41 +350,40 @@ class Services(commands.Cog):
             logger.info(f"Service channel: {channel.name} | {user} | {service_id} | {opcao}")
 
         except discord.Forbidden:
-            await interaction.followup.send("❌ Sem permissão para criar canais.", ephemeral=True)
+            await interaction.followup.send("❌ Sem permissão de administrador/canal no servidor.", ephemeral=True)
         except Exception as e:
-            logger.error(f"Erro criar canal serviço: {e}")
-            await interaction.followup.send("❌ Erro ao criar canal.", ephemeral=True)
+            logger.error(f"Erro ao criar canal de serviço: {e}")
+            await interaction.followup.send("❌ Ocorreu um erro interno ao criar seu canal.", ephemeral=True)
 
     # ====================================
-    # FECHAR CANAL (genérico)
+    # FECHAR CANAL (genérico com Transcript)
     # ====================================
 
     async def handle_fechar(self, interaction: discord.Interaction):
-        """Fecha qualquer canal criado pelo bot"""
+        """Fecha o canal e gera histórico para registro"""
 
         is_staff = PermissionChecker.is_staff(interaction.user)
         topic = interaction.channel.topic or ""
         user_id_in_topic = str(interaction.user.id) in topic
 
-        # Verificar se o usuário tem acesso ao canal (é dono)
         perms = interaction.channel.permissions_for(interaction.user)
         can_read = perms.read_messages
 
         if not (is_staff or user_id_in_topic or can_read):
             await interaction.response.send_message(
-                "❌ Você não pode fechar este canal.", ephemeral=True
+                "❌ Você não tem permissão para fechar este atendimento.", ephemeral=True
             )
             return
 
-        # Pedir confirmação com botões inline simples
         embed_confirm = discord.Embed(
-            description="⚠️ **Tem certeza que deseja fechar este canal?**",
-            color=0xff0000
+            title="⚠️ Confirmação de Encerramento",
+            description="Tem certeza de que deseja fechar este canal?\nEsta ação **não poderá ser desfeita**.",
+            color=0xEF4444
         )
 
         view = discord.ui.View()
-        btn_sim = discord.ui.Button(label="Sim, fechar", style=discord.ButtonStyle.red)
-        btn_nao = discord.ui.Button(label="Cancelar", style=discord.ButtonStyle.gray)
+        btn_sim = discord.ui.Button(label="Sim, encerrar", style=discord.ButtonStyle.red, emoji="✅")
+        btn_nao = discord.ui.Button(label="Cancelar", style=discord.ButtonStyle.secondary, emoji="✖️")
 
         confirmado = False
 
@@ -438,112 +402,156 @@ class Services(commands.Cog):
         view.add_item(btn_sim)
         view.add_item(btn_nao)
 
-        await interaction.response.send_message(
-            embed=embed_confirm, view=view, ephemeral=True
-        )
-
+        await interaction.response.send_message(embed=embed_confirm, view=view, ephemeral=True)
         await view.wait()
 
         if not confirmado:
             await interaction.edit_original_response(
-                content="❌ Fechamento cancelado.", embed=None, view=None
+                content="❌ Ação de encerramento cancelada.", embed=None, view=None
             )
             return
 
-        # Executar fechamento
         try:
             await interaction.edit_original_response(
-                content="✅ Fechando...", embed=None, view=None
+                content="⏳ Gerando relatório do atendimento e finalizando...", embed=None, view=None
             )
 
-            embed_aviso = discord.Embed(
-                description=f"🔒 Canal fechado por {interaction.user.mention}. Deletando em **5 segundos**...",
-                color=0xff0000
+            channel = interaction.channel
+            guild = interaction.guild
+
+            # 1. Compilar Histórico
+            messages = []
+            async for msg in channel.history(limit=1000, oldest_first=True):
+                time_str = msg.created_at.strftime("%d/%m/%Y %H:%M:%S")
+                content = msg.content if msg.content else "[Sem texto / Embed ou Imagem]"
+                messages.append(f"[{time_str}] {msg.author.name} ({msg.author.id}): {content}")
+
+            transcript_text = f"=== HISTÓRICO VOID STORE - CANAL #{channel.name} ===\n\n" + "\n".join(messages)
+            transcript_file = discord.File(
+                fp=io.BytesIO(transcript_text.encode("utf-8")),
+                filename=f"transcript-{channel.name}.txt"
             )
-            await interaction.channel.send(embed=embed_aviso)
+
+            # 2. Enviar para Logs
+            log_channel_id = getattr(config, "TICKET_LOGS_CHANNEL_ID", 1549933790309257226)
+            log_channel = guild.get_channel(log_channel_id)
+
+            if not log_channel:
+                try:
+                    log_channel = await guild.fetch_channel(log_channel_id)
+                except Exception:
+                    pass
+
+            if log_channel:
+                embed_log = discord.Embed(
+                    title="📜 Registros de Atendimento Finalizado",
+                    color=0x1F2937,
+                    timestamp=discord.utils.utcnow()
+                )
+                embed_log.add_field(name="💬 **Canal**", value=f"`#{channel.name}`", inline=True)
+                embed_log.add_field(name="🔒 **Encerrado por**", value=f"{interaction.user.mention}", inline=True)
+                embed_log.set_footer(text="🌑 VOID Store • Sistema de Logs Autônomo")
+
+                await log_channel.send(embed=embed_log, file=transcript_file)
+
+            embed_aviso = discord.Embed(
+                description=f"🔒 Atendimento finalizado por {interaction.user.mention}.\nO canal será exluído em **5 segundos**...",
+                color=0xEF4444
+            )
+            await channel.send(embed=embed_aviso)
 
             await self.db.create_log(
                 "canal", interaction.user.id, "fechado",
-                f"Channel: {interaction.channel.id}"
+                f"Channel: {channel.id}"
             )
 
             await asyncio.sleep(5)
-            await interaction.channel.delete(reason=f"Fechado por {interaction.user}")
+            await channel.delete(reason=f"Encerrado por {interaction.user}")
 
         except discord.NotFound:
             pass
         except discord.Forbidden:
-            await interaction.followup.send(
-                "❌ Sem permissão para deletar o canal.", ephemeral=True
-            )
+            await interaction.followup.send("❌ Permissão insuficiente para apagar o canal.", ephemeral=True)
         except Exception as e:
             logger.error(f"Erro ao fechar canal: {e}")
 
     # ====================================
-    # COMANDOS DE PAINEL
+    # GERAR PAINÉIS DE SERVIÇO
     # ====================================
 
     async def _painel(self, interaction: discord.Interaction, service_id: str):
         data = SERVICOS[service_id]
 
         precos_txt = "\n".join(
-            f"• **{op}** — `R$ {pr:.2f}`"
+            f"🔹 **{op}** ➔ `R$ {pr:.2f}`"
             for op, pr in zip(data["opcoes"], data["precos"])
         )
 
+        # --- EMBED DO PAINEL PÚBLICO ---
         embed = discord.Embed(
-            title=data["nome"],
+            title=f"🌑 VOID Store | {data['nome']}",
             description=(
-                f"Escolha a opção desejada clicando no botão abaixo.\n"
-                f"Você informará seu nick e um canal privado será aberto.\n\n"
-                f"**💰 Preços:**\n{precos_txt}"
+                f"Obtenha os melhores pacotes com a maior rapidez e segurança do mercado.\n\n"
+                f"### 💸 Tabela de Valores\n{precos_txt}\n\n"
+                f"> 💡 **Como comprar?**\n"
+                f"> Clique no botão abaixo correspondente ao pacote desejado para abrir um canal de compra exclusivo."
             ),
             color=data["cor"],
             timestamp=discord.utils.utcnow()
         )
-        embed.set_footer(text="🌑 VOID Store | Serviço rápido e seguro")
+        
+        if "banner" in data:
+            embed.set_image(url=data["banner"])
 
-        # Botões com custom_id: svc:service_id:index
+        embed.set_footer(
+            text="🌑 VOID Store • Qualidade e Agilidade Garantidas",
+            icon_url=interaction.guild.icon.url if interaction.guild.icon else None
+        )
+
         view = discord.ui.View()
         for i, opcao in enumerate(data["opcoes"]):
             btn = discord.ui.Button(
                 label=opcao,
-                style=discord.ButtonStyle.blurple,
+                style=discord.ButtonStyle.primary,
                 custom_id=f"svc:{service_id}:{i}"
             )
             view.add_item(btn)
 
         await interaction.channel.send(embed=embed, view=view)
         await interaction.response.send_message(
-            f"✅ Painel **{data['nome']}** criado!", ephemeral=True
+            f"✅ Painel **{data['nome']}** gerado com sucesso!", ephemeral=True
         )
 
-    @app_commands.command(name="painel-frutas", description="🍎 Cria o painel de Farm de Frutas")
+    # ====================================
+    # COMANDOS SLASH DOS PAINÉIS
+    # ====================================
+
+    @app_commands.command(name="painel-frutas", description="🍎 Exibe o painel de Farm de Frutas")
     @app_commands.checks.has_permissions(administrator=True)
     async def painel_frutas(self, interaction: discord.Interaction):
         await self._painel(interaction, "frutas")
 
-    @app_commands.command(name="painel-level", description="⭐ Cria o painel de Farm de Level")
+    @app_commands.command(name="painel-level", description="⭐ Exibe o painel de Farm de Level")
     @app_commands.checks.has_permissions(administrator=True)
     async def painel_level(self, interaction: discord.Interaction):
         await self._painel(interaction, "level")
 
-    @app_commands.command(name="painel-materiais", description="🧪 Cria o painel de Farm de Materiais")
+    @app_commands.command(name="painel-materiais", description="🧪 Exibe o painel de Farm de Materiais")
     @app_commands.checks.has_permissions(administrator=True)
     async def painel_materiais(self, interaction: discord.Interaction):
         await self._painel(interaction, "materiais")
 
-    @app_commands.command(name="painel-v4", description="⚙️ Cria o painel de V4 / Gear")
+    @app_commands.command(name="painel-v4", description="⚙️ Exibe o painel de V4 / Gear")
     @app_commands.checks.has_permissions(administrator=True)
     async def painel_v4(self, interaction: discord.Interaction):
         await self._painel(interaction, "v4")
 
-    @app_commands.command(name="painel-money", description="💵 Cria o painel de Farm de Money")
+    @app_commands.command(name="painel-money", description="💵 Exibe o painel de Farm de Money")
     @app_commands.checks.has_permissions(administrator=True)
     async def painel_money(self, interaction: discord.Interaction):
         await self._painel(interaction, "money")
 
-    @app_commands.command(name="painel-fragmentos", description="💎 Cria o painel de Farm de Fragments")
+    @app_commands.command(name="painel-fragmentos", description="💎 Exibe o painel de Farm de Fragments")
     @app_commands.checks.has_permissions(administrator=True)
     async def painel_fragmentos(self, interaction: discord.Interaction):
         await self._painel(interaction, "fragmentos")

@@ -86,20 +86,18 @@ class VoidBot(commands.Bot):
             return
         
         # Lista de cogs para carregar
-        # Em bot.py, dentro de load_cogs(), atualize a lista:
-
         cog_files = [
             "welcome",
             "tickets",
-            "ticket_logs",          # NOVO (Transcript e Logs de Tickets)
-            "reports",              # NOVO (Relatórios da Staff)
+            "ticket_logs",          # Transcript e Logs de Tickets
+            "reports",              # Relatórios da Staff
             "orders",
             "shop",
             "services",
             "stock_display",
             "pix",
-            "vip_booster_panels",   # NOVO
-            "support",              # NOVO
+            "vip_booster_panels",   # Painéis VIP / Booster
+            "support",              # Suporte
             "roles",
             "vip",
             "booster",
@@ -110,7 +108,6 @@ class VoidBot(commands.Bot):
             "sheets",
             "setup",
             "help",
-            "support",
             "error_handler"
         ]
         

@@ -10,7 +10,7 @@ from discord.ext import commands
 from groq import Groq
 
 # ID do canal onde os transcripts serão gravados
-TICKET_LOGS_CHANNEL_ID = 1549933790309257226
+TICKET_LOGS_CHANNEL_ID = 1549934937002614935
 
 # Inicialização do Cliente Groq
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
@@ -489,7 +489,7 @@ class CloseSupportView(discord.ui.View):
 
     @discord.ui.button(label="Encerrar Atendimento", style=discord.ButtonStyle.red, emoji="🔒", custom_id="btn_close_support")
     async def close_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_message("🔒 **Gerando transcript e encerrando atendimento em 5 segundos...**")
+        await interaction.response.send_message("🔒 **A gerar transcript e a encerrar atendimento em 5 segundos...**")
         
         channel = interaction.channel
         category = channel.category
@@ -550,7 +550,7 @@ class SupportModalitiesView(discord.ui.View):
         existing_channel = discord.utils.get(guild.channels, name=channel_name)
         if existing_channel:
             await interaction.response.send_message(
-                f"❌ **Você já possui um atendimento de suporte aberto!** Acesse {existing_channel.mention}.",
+                f"❌ **Já possui um atendimento de suporte aberto!** Acesse {existing_channel.mention}.",
                 ephemeral=True
             )
             return
@@ -604,10 +604,10 @@ class SupportModalitiesView(discord.ui.View):
                 f"Olá {user.mention}, bem-vindo ao seu atendimento!\n\n"
                 f"📌 **Modalidade Selecionada:** `{mode_label}`\n\n"
                 + (
-                    "🤖 **A nossa IA de Suporte está pronta!** Envie sua dúvida no chat abaixo para ser respondido instantaneamente.\n"
+                    "🤖 **A nossa IA de Suporte está pronta!** Envie a sua dúvida no chat abaixo para ser respondido instantaneamente.\n"
                     "*(Caso precise falar com a gerência, clique no botão 'Chamar Atendente Humano' abaixo).* "
                     if is_ai else
-                    "👤 **Nossa equipe foi acionada.** Explique sua dúvida ou problema detalhadamente no chat e aguarde um atendente."
+                    "👤 **A nossa equipe foi acionada.** Explique a sua dúvida ou problema detalhadamente no chat e aguarde um atendente."
                 )
             ),
             color=discord.Color.from_rgb(15, 15, 15)
@@ -675,8 +675,11 @@ class Support(commands.Cog):
                     await message.channel.send("⚠️ *Erro ao processar a resposta pela IA. Utilize o botão 'Chamar Atendente Humano' se precisar de ajuda.*")
 
     @app_commands.command(name="suporte-painel", description="Envia o painel oficial de suporte (com IA e Atendimento Humano)")
-    @commands.has_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
     async def suporte_painel(self, interaction: discord.Interaction):
+        # Adianta a resposta para evitar o erro de timeout do Discord
+        await interaction.response.defer(ephemeral=True)
+
         embed = discord.Embed(
             title="🌑 𝐕𝐎𝐈𝐃 𝐒𝐭𝐨𝐫𝐞 — Central de Suporte & Dúvidas",
             description=(
@@ -692,7 +695,7 @@ class Support(commands.Cog):
         embed.set_footer(text="🌑 VOID Store • Clique em uma das opções abaixo para iniciar")
 
         await interaction.channel.send(embed=embed, view=SupportModalitiesView())
-        await interaction.response.send_message("✅ Painel de suporte enviado com sucesso!", ephemeral=True)
+        await interaction.followup.send("✅ Painel de suporte enviado com sucesso!", ephemeral=True)
 
 
 async def setup(bot):

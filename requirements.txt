@@ -16,3 +16,5 @@ aiohttp==3.9.1
 # Ou para QR Code:
 qrcode[pil]==7.4.2
 pillow==10.1.0
+
+groq

@@ -1,5 +1,5 @@
 """
-🌑 VOID Store Bot - Sistema de Suporte Integrado (IA Groq + Atendimento Humano)
+🌑 VOID Store Bot - Sistema de Suporte Integrado (IA Groq + Atendimento Humano via Select Menu)
 """
 import io
 import os
@@ -528,25 +528,48 @@ class CloseSupportView(discord.ui.View):
 
         await asyncio.sleep(5)
         
-        # 3. Deleta o canal e a categoria privada criada
+        # 3. Elimina o canal e a categoria privada criada
         await channel.delete()
         if category and len(category.channels) == 0:
             await category.delete()
 
 
-class SupportModalitiesView(discord.ui.View):
-    """View do Painel com as Opções de Suporte via IA ou Atendente Humano."""
+class SupportSelect(discord.ui.Select):
+    """Menu suspenso (Dropdown) para escolha do tipo de atendimento."""
     def __init__(self):
-        super().__init__(timeout=None)
+        options = [
+            discord.SelectOption(
+                label="Atendimento por IA (Instantâneo)",
+                value="ai",
+                description="Tire dúvidas gerais, preços e informações com a IA da loja.",
+                emoji="🤖"
+            ),
+            discord.SelectOption(
+                label="Atendimento Humano (Gerência)",
+                value="human",
+                description="Fale com a equipe para pagamentos, problemas ou entregas.",
+                emoji="💬"
+            )
+        ]
+        super().__init__(
+            placeholder="Selecione a categoria do seu atendimento...",
+            min_values=1,
+            max_values=1,
+            options=options,
+            custom_id="select_support_category"
+        )
 
-    async def create_support_ticket(self, interaction: discord.Interaction, is_ai: bool):
+    async def callback(self, interaction: discord.Interaction):
+        selected_value = self.values[0]
+        is_ai = selected_value == "ai"
+        
         guild = interaction.guild
         user = interaction.user
         mode_label = "Atendimento por IA (Groq)" if is_ai else "Atendimento Humano"
         prefix = "ia" if is_ai else "suporte"
         channel_name = f"💬-{prefix}-{user.name.lower()}"
 
-        # Verifica se o cliente já possui um ticket com esse nome
+        # Verifica se o cliente já tem um canal aberto
         existing_channel = discord.utils.get(guild.channels, name=channel_name)
         if existing_channel:
             await interaction.response.send_message(
@@ -575,21 +598,21 @@ class SupportModalitiesView(discord.ui.View):
             )
         }
 
-        # Se for atendimento humano, inclui os cargos da Staff imediatamente
+        # Se for atendimento humano, atribui acesso aos cargos da Staff
         if not is_ai:
             for role_id in [1550096907739857079, 1550097139093209139]:
                 role = guild.get_role(role_id)
                 if role:
                     overwrites[role] = discord.PermissionOverwrite(read_messages=True, view_channel=True, send_messages=True)
 
-        # 1. Cria a Categoria Privada Dedicada
+        # Cria Categoria Privada
         category_name = f"🔒 │ SUPORTE {'IA' if is_ai else 'HUMANO'} - {user.name}"
         ticket_category = await guild.create_category_channel(
             name=category_name,
             overwrites=overwrites
         )
 
-        # 2. Cria o Canal Privado
+        # Cria Canal Privado
         support_channel = await guild.create_text_channel(
             name=channel_name,
             category=ticket_category,
@@ -597,7 +620,7 @@ class SupportModalitiesView(discord.ui.View):
             topic=f"Atendimento Suporte ({mode_label}): {user.display_name}"
         )
 
-        # 3. Mensagem Inicial
+        # Mensagem Inicial
         embed = discord.Embed(
             title=f"🌑 VOID STORE — SUPORTE ({'IA' if is_ai else 'HUMANO'})",
             description=(
@@ -624,13 +647,12 @@ class SupportModalitiesView(discord.ui.View):
             ephemeral=True
         )
 
-    @discord.ui.button(label="Atendimento por IA (Instantâneo)", style=discord.ButtonStyle.green, emoji="🤖", custom_id="btn_support_ai")
-    async def opt_ai(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.create_support_ticket(interaction, is_ai=True)
 
-    @discord.ui.button(label="Atendimento Humano (Equipe)", style=discord.ButtonStyle.secondary, emoji="👥", custom_id="btn_support_human")
-    async def opt_human(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await self.create_support_ticket(interaction, is_ai=False)
+class SupportSelectView(discord.ui.View):
+    """View que contém o Menu Suspenso de Seleção."""
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(SupportSelect())
 
 
 class Support(commands.Cog):
@@ -643,7 +665,7 @@ class Support(commands.Cog):
         if message.author.bot or not message.guild:
             return
 
-        # Verifica se a mensagem foi enviada em um canal privado de IA
+        # Verifica se a mensagem foi enviada num canal privado de IA
         if message.channel.name and message.channel.name.startswith("💬-ia-"):
             if not groq_client:
                 await message.channel.send("⚠️ *A API da Groq (GROQ_API_KEY) não está configurada no bot.*")
@@ -659,43 +681,45 @@ class Support(commands.Cog):
                         if msg.content:
                             chat_history.append({"role": role, "content": msg.content})
 
-                    # Chamada ultrarrápida da API Groq
-                    completion = groq_client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
-                        messages=chat_history,
-                        temperature=0.6,
-                        max_tokens=400
-                    )
+                    # Executa a chamada síncrona da Groq numa thread separada para não bloquear o bot
+                    def call_groq():
+                        return groq_client.chat.completions.create(
+                            model="llama-3.3-70b-versatile",
+                            messages=chat_history,
+                            temperature=0.6,
+                            max_tokens=400
+                        )
+
+                    loop = asyncio.get_event_loop()
+                    completion = await loop.run_in_executor(None, call_groq)
 
                     ai_response = completion.choices[0].message.content
                     await message.reply(ai_response, mention_author=False)
 
                 except Exception as e:
-                    print(f"❌ [Groq Error]: {e}")
-                    await message.channel.send("⚠️ *Erro ao processar a resposta pela IA. Utilize o botão 'Chamar Atendente Humano' se precisar de ajuda.*")
+                    print(f"❌ [Groq Error Log]: {e}")
+                    await message.channel.send(f"⚠️ *Erro ao processar a resposta pela IA:* `{e}`")
 
-    @app_commands.command(name="suporte-painel", description="Envia o painel oficial de suporte (com IA e Atendimento Humano)")
+    @app_commands.command(name="suporte-painel", description="Envia o painel oficial de suporte com Menu Suspenso (Dropdown)")
     @app_commands.checks.has_permissions(administrator=True)
     async def suporte_painel(self, interaction: discord.Interaction):
-        # Adianta a resposta para evitar o erro de timeout do Discord
         await interaction.response.defer(ephemeral=True)
 
         embed = discord.Embed(
-            title="🌑 𝐕𝐎𝐈𝐃 𝐒𝐭𝐨𝐫𝐞 — Central de Suporte & Dúvidas",
+            title="Central de Atendimento — VOID Store",
             description=(
-                "Precisa de ajuda com alguma compra ou tem dúvidas sobre os nossos serviços de **Blox Fruits**?\n\n"
-                "Escolha abaixo a opção de atendimento desejada:\n\n"
-                "🤖 **Atendimento por IA:** Respostas automáticas e instantâneas para tirar dúvidas gerais e tabelas de preços.\n"
-                "👥 **Atendimento Humano:** Fale diretamente com a gerência para questões financeiras ou entregas."
+                "Seja bem-vindo à **VOID Store**!\n\n"
+                "Para efetuar compras, tirar dúvidas ou resgatar benefícios, selecione a opção desejada no **menu abaixo** para abrir um canal privado.\n\n"
+                "⚙️ *Atendimento 100% privado e seguro.*"
             ),
             color=discord.Color.from_rgb(15, 15, 15)
         )
         if interaction.guild and interaction.guild.icon:
             embed.set_thumbnail(url=interaction.guild.icon.url)
-        embed.set_footer(text="🌑 VOID Store • Clique em uma das opções abaixo para iniciar")
+        embed.set_footer(text="🌑 VOID Store • Selecione abaixo para abrir o seu ticket")
 
-        await interaction.channel.send(embed=embed, view=SupportModalitiesView())
-        await interaction.followup.send("✅ Painel de suporte enviado com sucesso!", ephemeral=True)
+        await interaction.channel.send(embed=embed, view=SupportSelectView())
+        await interaction.followup.send("✅ Painel de suporte com menu suspenso enviado com sucesso!", ephemeral=True)
 
 
 async def setup(bot):

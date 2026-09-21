@@ -1,6 +1,6 @@
 """
 🌑 VOID Store Bot - Cog de Campeonato PvP
-Inscrições limitadas a 10 participantes com persistência pós-reinício.
+Sistema de Inscrições com Notificação em Canal e Embed Reformulado.
 """
 
 import discord
@@ -13,8 +13,11 @@ from utils.logger import setup_logger
 
 logger = setup_logger("Championship")
 
-# Lock assíncrono para prevenir race conditions
+# Lock assíncrono para evitar race conditions no limite de 10 vagas
 CHAMPIONSHIP_LOCK = asyncio.Lock()
+
+# ID do canal onde os logs de inscrição serão enviados
+CHANNEL_LOG_ID = 1550272690311659550
 
 
 # ====================================
@@ -29,7 +32,7 @@ class ChampionshipModal(discord.ui.Modal, title="🎟️ Inscrição - Campeonat
         max_length=50
     )
     fruta = discord.ui.TextInput(
-        label="Fruta principal",
+        label="Fruta Principal",
         placeholder="Ex: Dough, Dragon, Portal...",
         required=True,
         max_length=50
@@ -149,20 +152,30 @@ class Championship(commands.Cog):
             )
 
             if sucesso:
+                # Confirmação privada ao usuário
                 embed_sucesso = discord.Embed(
-                    title="🎟️ Inscrição Confirmada!",
+                    title="🎟️ INSCRIÇÃO CONFIRMADA!",
                     description=(
                         f"Parabéns {user.mention}, sua vaga no **Campeonato PvP VOID Store** está garantida!\n\n"
-                        f"📌 **Posição:** Participante `#{slot_number}/10`\n"
-                        f"🎮 **Nick Roblox:** `{roblox_nick}`\n"
-                        f"🍎 **Fruta:** `{fruta}`\n"
-                        f"⭐ **Nível:** `{level}`"
+                        f"> 📌 **Posição:** Participante `#{slot_number}/10`\n"
+                        f"> 🎮 **Roblox:** `{roblox_nick}`\n"
+                        f"> 🍎 **Fruta:** `{fruta}`\n"
+                        f"> ⭐ **Nível:** `{level}`"
                     ),
                     color=0x10B981,
                     timestamp=discord.utils.utcnow()
                 )
-                embed_sucesso.set_footer(text="🌑 VOID Store • Boa sorte no torneio!")
+                embed_sucesso.set_footer(text="🌑 VOID Store • Boa sorte na arena!")
                 await interaction.followup.send(embed=embed_sucesso, ephemeral=True)
+
+                # Notificação pública no canal de inscrições
+                await self._notificar_canal_inscricao(
+                    user=user,
+                    roblox_nick=roblox_nick,
+                    fruta=fruta,
+                    level=level,
+                    slot_number=slot_number
+                )
 
                 logger.info(f"Campeonato: {user} registrado como participante #{slot_number}")
             else:
@@ -170,6 +183,30 @@ class Championship(commands.Cog):
                     "❌ Ocorreu um erro ao processar sua inscrição. Tente novamente.",
                     ephemeral=True
                 )
+
+    async def _notificar_canal_inscricao(self, user: discord.User, roblox_nick: str, fruta: str, level: str, slot_number: int):
+        """Envia o log do participante registrado no canal de destino"""
+        channel = self.bot.get_channel(CHANNEL_LOG_ID)
+        if not channel:
+            try:
+                channel = await self.bot.fetch_channel(CHANNEL_LOG_ID)
+            except Exception as e:
+                logger.error(f"Não foi possível encontrar o canal de inscrições ({CHANNEL_LOG_ID}): {e}")
+                return
+
+        embed_log = discord.Embed(
+            title=f"📥 NOVA INSCRIÇÃO REGISTRADA [#{slot_number}/10]",
+            color=0x5865F2,
+            timestamp=discord.utils.utcnow()
+        )
+        embed_log.add_field(name="👤 Discord", value=f"{user.mention} (`{user.id}`)", inline=False)
+        embed_log.add_field(name="🎮 Nick Roblox", value=f"`{roblox_nick}`", inline=True)
+        embed_log.add_field(name="🍎 Fruta Principal", value=f"`{fruta}`", inline=True)
+        embed_log.add_field(name="⭐ Nível", value=f"`{level}`", inline=True)
+        embed_log.set_thumbnail(url=user.display_avatar.url)
+        embed_log.set_footer(text="🌑 VOID Store • Campeonato PvP")
+
+        await channel.send(embed=embed_log)
 
     # ====================================
     # OPERAÇÕES DE BANCO DE DADOS
@@ -226,25 +263,40 @@ class Championship(commands.Cog):
     @app_commands.command(name="campeonato", description="🏆 Publica o painel do Campeonato PvP da VOID Store")
     @app_commands.checks.has_permissions(administrator=True)
     async def publicar_campeonato(self, interaction: discord.Interaction):
-        embed_text = (
-            "[**🌑**](https://discord.com/assets/8f162e8dbd1bfd6c.svg) **VOID STORE | CAMPEONATO PVP**\n\n"
-            "[⚔️](https://discord.com/assets/fa2c28d64be33d41.svg) **10 JOGADORES. 1 CAMPEÃO.**  A arena da **VOID Store** está aberta.\n"
-            "Prepare sua melhor build, enfrente seus adversários e lute pelo título de [**🏆**](https://discord.com/assets/f11aff9f1c8c5f19.svg) **Campeão VOID**.  \n\n"
-            "> [👥](https://discord.com/assets/be8706c9515e4e6e.svg) **10 VAGAS** [⚔️](https://discord.com/assets/fa2c28d64be33d41.svg) **1V1** [🏁](https://discord.com/assets/e5333cf49e7d6d2b.svg) **ELIMINAÇÃO** [🏆](https://discord.com/assets/f11aff9f1c8c5f19.svg) **PREMIAÇÃO** [🎥](https://discord.com/assets/c64b52fae182324d.svg) **PARTIDAS REGISTRADAS** \n\n"
-            "[📋](https://discord.com/assets/2a9a2a207078420b.svg) COMO FUNCIONA **2 preliminares → Quartas → Semifinais → Final**  [🔥](https://discord.com/assets/a7bd71d6389d0dfe.svg) Quartas e semifinais: **MD3**\n"
-            "[👑](https://discord.com/assets/b09a9a54f8e34d23.svg) Grande final: **MD5**  [🎁](https://discord.com/assets/949f113339307625.svg) PREMIAÇÃO  [🥇](https://discord.com/assets/08b871e132a77f8b.svg) **1º Lugar:** 2 controls + benefício na VOID [🥈](https://discord.com/assets/e60f28f718ca79b5.svg) **2º Lugar:** 1 tiger [🥉](https://discord.com/assets/21d7244670423a9b.svg) **3º Lugar:** 1 dough  [🎟️](https://discord.com/assets/dde8a9804160342c.svg) INSCRIÇÕES Garanta sua vaga no botão abaixo.  [⚠️](https://discord.com/assets/fb6fd920c79bd504.svg) **Vagas limitadas: apenas 10 participantes.**  ━━━━━━━━━━━━━━━━━━━━  [🌑](https://discord.com/assets/8f162e8dbd1bfd6c.svg) **VOID STORE** *Onde a batalha começa e apenas um chega ao topo.*"
-        )
-
+        # Embed com layout bonito, limpo e estruturado
         embed = discord.Embed(
-            description=embed_text,
-            color=0x4F46E5,
-            timestamp=discord.utils.utcnow()
+            title="🌑 VOID STORE | CAMPEONATO PVP",
+            description=(
+                "⚔️ **10 JOGADORES. 1 CAMPEÃO.**\n"
+                "A arena da **VOID Store** está oficialmente aberta!\n"
+                "Prepare sua melhor build, enfrente seus adversários e lute pelo título de **🏆 Campeão VOID**.\n\n"
+                "───\n\n"
+                "### 📌 INFORMAÇÕES DO TORNEIO\n"
+                "> 👥 **Vagas:** 10 Jogadores\n"
+                "> ⚔️ **Formato:** PvP 1v1 (Eliminação Simples)\n"
+                "> 🎥 **Transmissão:** Partidas Registradas\n\n"
+                "### 📋 ESTRUTURA DAS PARTIDAS\n"
+                "• **Preliminares:** 2 Partidas (1v1)\n"
+                "• **Quartas de Final:** Melhor de 3 (MD3)\n"
+                "• **Semifinais:** Melhor de 3 (MD3)\n"
+                "• **Grande Final:** Melhor de 5 (MD5)\n\n"
+                "### 🎁 PREMIAÇÕES EXCLUSIVAS\n"
+                "🥇 **1º Lugar:** `2x Control` + Benefício na VOID\n"
+                "🥈 **2º Lugar:** `1x Tiger`\n"
+                "🥉 **3º Lugar:** `1x Dough`\n\n"
+                "───\n\n"
+                "### 🎟️ COMO SE INSCREVER\n"
+                "Clique no botão abaixo **`🎟️ Registrar-se`**, preencha com seus dados do Roblox e garanta a sua vaga!\n\n"
+                "⚠️ *Atenção: As vagas são estritamente limitadas a 10 participantes.*"
+            ),
+            color=0x2B2D31
         )
+        embed.set_footer(text="🌑 VOID STORE • Onde a batalha começa e apenas um chega ao topo.")
 
         view = discord.ui.View(timeout=None)
         btn_registrar = discord.ui.Button(
             label="Registrar-se",
-            style=discord.ButtonStyle.blurple,
+            style=discord.ButtonStyle.primary,
             emoji="🎟️",
             custom_id="champ:registrar"
         )
@@ -269,7 +321,7 @@ class Championship(commands.Cog):
                 idx, user_id, roblox_nick, fruta, level = row['slot_number'], row['user_id'], row['roblox_nick'], row['fruta'], row['level']
             else:
                 idx, user_id, _, roblox_nick, fruta, level = row[0], row[1], row[2], row[3], row[4], row[5]
-            
+
             linhas.append(f"`#{idx}` | <@{user_id}> | **Roblox:** `{roblox_nick}` | **Fruta:** `{fruta}` | **Nível:** `{level}`")
 
         embed = discord.Embed(

@@ -9,11 +9,11 @@ from discord.ext import commands
 import asyncio
 from datetime import datetime
 
-from utils.permissions import PermissionChecker
-from utils.logger import logger
-from config import config
+from utils.logger import setup_logger
 
-# Lock assíncrono para prevenir race conditions no limite de 10 vagas
+logger = setup_logger("Championship")
+
+# Lock assíncrono para prevenir race conditions
 CHAMPIONSHIP_LOCK = asyncio.Lock()
 
 
@@ -62,35 +62,33 @@ class Championship(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db = bot.db
+
+    @property
+    def db(self):
+        return self.bot.db
 
     async def cog_load(self):
-        """Garante a criação da tabela no banco de dados ao carregar a Cog"""
+        """Cria a tabela no banco ao carregar a cog"""
         await self._init_db()
 
     async def _init_db(self):
-        """Cria a tabela de inscrições se não existir"""
+        """Cria a tabela de inscrições"""
+        query = """
+        CREATE TABLE IF NOT EXISTS championship_registrations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id BIGINT UNIQUE NOT NULL,
+            username TEXT NOT NULL,
+            roblox_nick TEXT NOT NULL,
+            fruta TEXT NOT NULL,
+            level TEXT NOT NULL,
+            slot_number INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            status TEXT DEFAULT 'CONFIRMED'
+        );
+        """
         try:
-            # Compatível com SQLite / PostgreSQL via bot.db
-            query = """
-            CREATE TABLE IF NOT EXISTS championship_registrations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id BIGINT UNIQUE NOT NULL,
-                username TEXT NOT NULL,
-                roblox_nick TEXT NOT NULL,
-                fruta TEXT NOT NULL,
-                level TEXT NOT NULL,
-                slot_number INTEGER NOT NULL,
-                created_at TEXT NOT NULL,
-                status TEXT DEFAULT 'CONFIRMED'
-            );
-            """
             if hasattr(self.db, "execute"):
                 await self.db.execute(query)
-            elif hasattr(self.db, "conn"):
-                async with self.db.conn.cursor() as cursor:
-                    await cursor.execute(query)
-                await self.db.conn.commit()
         except Exception as e:
             logger.error(f"Erro ao inicializar tabela do campeonato: {e}")
 
@@ -120,8 +118,9 @@ class Championship(commands.Cog):
             # 1. Verificar se já está inscrito
             inscrito = await self._buscar_inscricao_usuario(user.id)
             if inscrito:
+                slot_num = inscrito.get("slot_number") if isinstance(inscrito, dict) else inscrito[6]
                 await interaction.followup.send(
-                    f"⚠️ Você já está inscrito neste campeonato como **Participante #{inscrito['slot_number']}/10**.",
+                    f"⚠️ Você já está inscrito neste campeonato como **Participante #{slot_num}/10**.",
                     ephemeral=True
                 )
                 return
@@ -181,12 +180,6 @@ class Championship(commands.Cog):
             query = "SELECT * FROM championship_registrations WHERE user_id = ?;"
             if hasattr(self.db, "fetchone"):
                 return await self.db.fetchone(query, (user_id,))
-            elif hasattr(self.db, "conn"):
-                async with self.db.conn.cursor() as cursor:
-                    await cursor.execute(query, (user_id,))
-                    row = await cursor.fetchone()
-                    if row:
-                        return {"slot_number": row[6]}
         except Exception as e:
             logger.error(f"Erro ao buscar inscrito: {e}")
         return None
@@ -196,12 +189,8 @@ class Championship(commands.Cog):
             query = "SELECT COUNT(*) FROM championship_registrations WHERE status = 'CONFIRMED';"
             if hasattr(self.db, "fetchone"):
                 res = await self.db.fetchone(query)
-                return res[0] if res else 0
-            elif hasattr(self.db, "conn"):
-                async with self.db.conn.cursor() as cursor:
-                    await cursor.execute(query)
-                    res = await cursor.fetchone()
-                    return res[0] if res else 0
+                if res:
+                    return res[0] if isinstance(res, (tuple, list)) else res.get("COUNT(*)", 0)
         except Exception as e:
             logger.error(f"Erro ao contar inscritos: {e}")
         return 0
@@ -216,10 +205,6 @@ class Championship(commands.Cog):
 
             if hasattr(self.db, "execute"):
                 await self.db.execute(query, params)
-            elif hasattr(self.db, "conn"):
-                async with self.db.conn.cursor() as cursor:
-                    await cursor.execute(query, params)
-                await self.db.conn.commit()
             return True
         except Exception as e:
             logger.error(f"Erro ao salvar inscrição: {e}")
@@ -227,15 +212,11 @@ class Championship(commands.Cog):
 
     async def _obter_todos_inscritos(self):
         try:
-            query = "SELECT slot_number, user_id, username, roblox_nick, fruta, level FROM championship_registrations ORDER BY slot_number ASC;"
+            query = "SELECT slot_number, user_id, username, roblox_nick, fruta, level FROM championship_registrations WHERE status = 'CONFIRMED' ORDER BY slot_number ASC;"
             if hasattr(self.db, "fetchall"):
                 return await self.db.fetchall(query)
-            elif hasattr(self.db, "conn"):
-                async with self.db.conn.cursor() as cursor:
-                    await cursor.execute(query)
-                    return await cursor.fetchall()
         except Exception as e:
-            logger.error(f"Erro ao buscar todos os inscritos: {e}")
+            logger.error(f"Erro ao buscar inscritos: {e}")
         return []
 
     # ====================================
@@ -245,7 +226,6 @@ class Championship(commands.Cog):
     @app_commands.command(name="campeonato", description="🏆 Publica o painel do Campeonato PvP da VOID Store")
     @app_commands.checks.has_permissions(administrator=True)
     async def publicar_campeonato(self, interaction: discord.Interaction):
-        # Texto exato fornecido
         embed_text = (
             "[**🌑**](https://discord.com/assets/8f162e8dbd1bfd6c.svg) **VOID STORE | CAMPEONATO PVP**\n\n"
             "[⚔️](https://discord.com/assets/fa2c28d64be33d41.svg) **10 JOGADORES. 1 CAMPEÃO.**  A arena da **VOID Store** está aberta.\n"
@@ -284,7 +264,12 @@ class Championship(commands.Cog):
             return
 
         linhas = []
-        for idx, user_id, username, roblox_nick, fruta, level in inscritos:
+        for row in inscritos:
+            if isinstance(row, dict):
+                idx, user_id, roblox_nick, fruta, level = row['slot_number'], row['user_id'], row['roblox_nick'], row['fruta'], row['level']
+            else:
+                idx, user_id, _, roblox_nick, fruta, level = row[0], row[1], row[2], row[3], row[4], row[5]
+            
             linhas.append(f"`#{idx}` | <@{user_id}> | **Roblox:** `{roblox_nick}` | **Fruta:** `{fruta}` | **Nível:** `{level}`")
 
         embed = discord.Embed(

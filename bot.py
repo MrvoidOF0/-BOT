@@ -107,6 +107,7 @@ class VoidBot(commands.Bot):
             "logs",
             "sheets",
             "setup",
+            "championship",         # 🏆 Campeonato PvP VOID Store
             "help",
             "error_handler"
         ]

@@ -682,7 +682,7 @@ class Support(commands.Cog):
 
                     def call_groq():
                         return groq_client.chat.completions.create(
-                            model="llama-3.1-8b-instant",  # Modelo ativo e estável da Groq
+                            model="openai/gpt-oss-120b",  # Modelo configurado para 120b
                             messages=chat_history,
                             temperature=0.6,
                             max_tokens=400

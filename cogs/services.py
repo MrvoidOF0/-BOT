@@ -22,7 +22,7 @@ SERVICOS = {
     "frutas": {
         "nome": "🍎 Farm de Frutas",
         "cor": 0xA855F7,  # Roxo vibrante
-        "banner": "https://i.imgur.com/8QZ8G9M.png",  # Opcional: Adicione imagem/banner se desejar
+        "banner": "",  # Opcional: Adicione imagem/banner se desejar
         "instrucao": (
             "> **Informe os detalhes do seu pedido:**\n"
             "Qual fruta você deseja focar e por quantas horas prefere o farm?"

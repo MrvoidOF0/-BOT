@@ -1,6 +1,6 @@
 """
 🌑 VOID Store Bot - Cog de Campeonato PvP
-Sistema de Inscrições com Notificação em Canal e Embed Reformulado.
+Sistema de Inscrições com Validação de Nível Mínimo (2750) e Bloqueio de Duplicidade.
 """
 
 import discord
@@ -18,6 +18,9 @@ CHAMPIONSHIP_LOCK = asyncio.Lock()
 
 # ID do canal onde os logs de inscrição serão enviados
 CHANNEL_LOG_ID = 1550272690311659550
+
+# Configurações do Campeonato
+MIN_LEVEL = 2750
 
 
 # ====================================
@@ -38,8 +41,8 @@ class ChampionshipModal(discord.ui.Modal, title="🎟️ Inscrição - Campeonat
         max_length=50
     )
     level = discord.ui.TextInput(
-        label="Nível no Blox Fruits",
-        placeholder="Ex: 2550",
+        label="Nível no Blox Fruits (Mínimo 2750)",
+        placeholder="Ex: 2750",
         required=True,
         max_length=10
     )
@@ -52,7 +55,7 @@ class ChampionshipModal(discord.ui.Modal, title="🎟️ Inscrição - Campeonat
                 interaction=interaction,
                 roblox_nick=self.roblox_nick.value.strip(),
                 fruta=self.fruta.value.strip(),
-                level=self.level.value.strip()
+                level_str=self.level.value.strip()
             )
 
 
@@ -107,6 +110,16 @@ class Championship(commands.Cog):
         custom_id = interaction.data.get("custom_id", "")
 
         if custom_id == "champ:registrar":
+            # Verificar se o usuário já se registrou antes mesmo de abrir o modal
+            inscrito = await self._buscar_inscricao_usuario(interaction.user.id)
+            if inscrito:
+                slot_num = inscrito.get("slot_number") if isinstance(inscrito, dict) else inscrito[6]
+                await interaction.response.send_message(
+                    f"⚠️ **Você já está inscrito!**\nSua inscrição está confirmada como **Participante #{slot_num}/10** e não é possível se registrar novamente.",
+                    ephemeral=True
+                )
+                return
+
             modal = ChampionshipModal()
             await interaction.response.send_modal(modal)
 
@@ -114,11 +127,32 @@ class Championship(commands.Cog):
     # PROCESSAMENTO DA INSCRIÇÃO
     # ====================================
 
-    async def processar_inscricao(self, interaction: discord.Interaction, roblox_nick: str, fruta: str, level: str):
+    async def processar_inscricao(self, interaction: discord.Interaction, roblox_nick: str, fruta: str, level_str: str):
         user = interaction.user
 
+        # 1. Validação de Nível Mínimo
+        # Limpa qualquer caractere não numérico digitado (ex: "lvl 2750" -> 2750)
+        digits_only = "".join(filter(str.isdigit, level_str))
+        
+        if not digits_only:
+            await interaction.followup.send(
+                "❌ **Nível inválido!** Por favor, insira apenas o número do seu nível no Blox Fruits.",
+                ephemeral=True
+            )
+            return
+
+        level_num = int(digits_only)
+
+        if level_num < MIN_LEVEL:
+            await interaction.followup.send(
+                f"❌ **Inscrição recusada!** O nível mínimo exigido para participar do campeonato é **{MIN_LEVEL}**.\n"
+                f"Seu nível informado foi: `{level_num}`.",
+                ephemeral=True
+            )
+            return
+
         async with CHAMPIONSHIP_LOCK:
-            # 1. Verificar se já está inscrito
+            # 2. Re-verificar se já está inscrito (Garantia anti-race condition)
             inscrito = await self._buscar_inscricao_usuario(user.id)
             if inscrito:
                 slot_num = inscrito.get("slot_number") if isinstance(inscrito, dict) else inscrito[6]
@@ -128,16 +162,16 @@ class Championship(commands.Cog):
                 )
                 return
 
-            # 2. Verificar total de vagas preenchidas
+            # 3. Verificar total de vagas preenchidas
             total_inscritos = await self._contar_inscritos()
             if total_inscritos >= 10:
                 await interaction.followup.send(
-                    "❌ As **10 vagas** do campeonato já foram preenchidas!",
+                    "❌ As **10 vagas** do campeonato já foram totalmente preenchidas!",
                     ephemeral=True
                 )
                 return
 
-            # 3. Registrar a vaga
+            # 4. Registrar a vaga
             slot_number = total_inscritos + 1
             created_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -146,7 +180,7 @@ class Championship(commands.Cog):
                 username=str(user),
                 roblox_nick=roblox_nick,
                 fruta=fruta,
-                level=level,
+                level=str(level_num),
                 slot_number=slot_number,
                 created_at=created_at
             )
@@ -160,7 +194,7 @@ class Championship(commands.Cog):
                         f"> 📌 **Posição:** Participante `#{slot_number}/10`\n"
                         f"> 🎮 **Roblox:** `{roblox_nick}`\n"
                         f"> 🍎 **Fruta:** `{fruta}`\n"
-                        f"> ⭐ **Nível:** `{level}`"
+                        f"> ⭐ **Nível:** `{level_num}`"
                     ),
                     color=0x10B981,
                     timestamp=discord.utils.utcnow()
@@ -173,14 +207,14 @@ class Championship(commands.Cog):
                     user=user,
                     roblox_nick=roblox_nick,
                     fruta=fruta,
-                    level=level,
+                    level=str(level_num),
                     slot_number=slot_number
                 )
 
                 logger.info(f"Campeonato: {user} registrado como participante #{slot_number}")
             else:
                 await interaction.followup.send(
-                    "❌ Ocorreu um erro ao processar sua inscrição. Tente novamente.",
+                    "❌ Ocorreu um erro ao processar sua inscrição no banco de dados. Tente novamente.",
                     ephemeral=True
                 )
 
@@ -263,7 +297,6 @@ class Championship(commands.Cog):
     @app_commands.command(name="campeonato", description="🏆 Publica o painel do Campeonato PvP da VOID Store")
     @app_commands.checks.has_permissions(administrator=True)
     async def publicar_campeonato(self, interaction: discord.Interaction):
-        # Embed com layout bonito, limpo e estruturado
         embed = discord.Embed(
             title="🌑 VOID STORE | CAMPEONATO PVP",
             description=(
@@ -273,6 +306,7 @@ class Championship(commands.Cog):
                 "───\n\n"
                 "### 📌 INFORMAÇÕES DO TORNEIO\n"
                 "> 👥 **Vagas:** 10 Jogadores\n"
+                "> ⭐ **Requisito:** Nível Mínimo 2750\n"
                 "> ⚔️ **Formato:** PvP 1v1 (Eliminação Simples)\n"
                 "> 🎥 **Transmissão:** Partidas Registradas\n\n"
                 "### 📋 ESTRUTURA DAS PARTIDAS\n"
@@ -287,7 +321,7 @@ class Championship(commands.Cog):
                 "───\n\n"
                 "### 🎟️ COMO SE INSCREVER\n"
                 "Clique no botão abaixo **`🎟️ Registrar-se`**, preencha com seus dados do Roblox e garanta a sua vaga!\n\n"
-                "⚠️ *Atenção: As vagas são estritamente limitadas a 10 participantes.*"
+                "⚠️ *Atenção: Apenas jogadores de nível 2750 ou superior podem participar.*"
             ),
             color=0x2B2D31
         )

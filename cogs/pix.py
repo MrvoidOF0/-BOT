@@ -1,251 +1,173 @@
 """
-🌑 VOID Store Bot - Sistema PIX Corrigido
+🌑 VOID Store Bot - Cog de Pagamento PIX (Nubank / Manual)
+Permite configurar os dados do PIX e exibe as informações de pagamento para o cliente.
 """
 
 import discord
 from discord import app_commands
 from discord.ext import commands
-from typing import Optional
-from datetime import datetime
+from utils.logger import setup_logger
 
-from utils.embeds import VoidEmbeds
-from utils.permissions import PermissionChecker
-from utils.helpers import format_currency
-from utils.logger import logger
+logger = setup_logger("PIX")
 
 
 class Pix(commands.Cog):
-    """Sistema de pagamento PIX"""
+    """Sistema de Pagamentos PIX via Nubank / Chave Manual"""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db = bot.db
 
-    async def _get_pix(self) -> dict:
-        """Busca os dados do PIX no banco de dados"""
-        return {
-            "key":  await self.db.get_config("pix_key")  or "",
-            "name": await self.db.get_config("pix_name") or "",
-            "city": await self.db.get_config("pix_city") or "",
-            "bank": await self.db.get_config("pix_bank") or "",
-        }
+    @property
+    def db(self):
+        return self.bot.db
 
-    def _txid(self) -> str:
-        return f"VOID{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    async def cog_load(self):
+        """Cria a tabela no banco de dados ao carregar a cog"""
+        await self._init_db()
 
-    @app_commands.command(name="pix-configurar", description="💳 Configura sua chave PIX")
+    async def _init_db(self):
+        """Inicializa a tabela para guardar a configuração do PIX"""
+        query = """
+        CREATE TABLE IF NOT EXISTS pix_config (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            chave_pix TEXT NOT NULL,
+            titular TEXT NOT NULL,
+            copia_cola TEXT
+        );
+        """
+        try:
+            if hasattr(self.db, "execute"):
+                await self.db.execute(query)
+        except Exception as e:
+            logger.error(f"Erro ao inicializar a tabela pix_config: {e}")
+
+    # ====================================
+    # MÉTODOS DE BANCO DE DADOS
+    # ====================================
+
+    async def _salvar_config_pix(self, chave: str, titular: str, copia_cola: str = "") -> bool:
+        """Guarda ou atualiza a chave PIX no banco de dados"""
+        query = """
+        INSERT INTO pix_config (id, chave_pix, titular, copia_cola)
+        VALUES (1, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            chave_pix = excluded.chave_pix,
+            titular = excluded.titular,
+            copia_cola = excluded.copia_cola;
+        """
+        try:
+            if hasattr(self.db, "execute"):
+                await self.db.execute(query, (chave, titular, copia_cola))
+            return True
+        except Exception as e:
+            logger.error(f"Erro ao salvar configuracao do PIX: {e}")
+            return False
+
+    async def _obter_config_pix(self):
+        """Procura as configurações atuais do PIX"""
+        query = "SELECT chave_pix, titular, copia_cola FROM pix_config WHERE id = 1;"
+        try:
+            if hasattr(self.db, "fetchone"):
+                return await self.db.fetchone(query)
+        except Exception as e:
+            logger.error(f"Erro ao buscar configuracao do PIX: {e}")
+        return None
+
+    # ====================================
+    # COMANDOS SLASH
+    # ====================================
+
+    @app_commands.command(
+        name="pix-configurar",
+        description="⚙️ Configura os dados da conta Nubank/PIX para recebimentos (Apenas Admins)"
+    )
+    @app_commands.checks.has_permissions(administrator=True)
     @app_commands.describe(
-        chave="Sua chave PIX (email, CPF, telefone ou chave aleatória)",
-        nome="Seu nome completo (como no banco)",
-        cidade="Sua cidade (como no banco)",
-        banco="Seu banco (ex: Nubank, Inter)"
+        chave="Tua chave PIX (CPF, E-mail, Telemóvel ou Aleatória)",
+        titular="Nome completo do titular da conta Nubank",
+        copia_cola="Código Copia e Cola estático do Nubank (Opcional)"
     )
     async def pix_configurar(
         self,
         interaction: discord.Interaction,
         chave: str,
-        nome: str,
-        cidade: str,
-        banco: str
+        titular: str,
+        copia_cola: str = ""
     ):
-        if not await PermissionChecker.check_interaction_permissions(interaction, require_admin=True):
-            return
+        await interaction.response.defer(ephemeral=True)
 
-        await self.db.set_config("pix_key",  chave.strip())
-        await self.db.set_config("pix_name", nome.strip())
-        await self.db.set_config("pix_city", cidade.strip())
-        await self.db.set_config("pix_bank", banco.strip())
+        sucesso = await self._salvar_config_pix(chave, titular, copia_cola)
 
-        embed = VoidEmbeds.success(
-            "PIX Configurado",
-            f"🔑 **Chave:** `{chave}`\n"
-            f"👤 **Titular:** {nome}\n"
-            f"🏙️ **Cidade:** {cidade}\n"
-            f"🏦 **Banco:** {banco}"
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        logger.info(f"PIX configured by {interaction.user}")
+        if sucesso:
+            embed = discord.Embed(
+                title="✅ PIX Configurado com Sucesso!",
+                description=(
+                    "As informações de pagamento foram guardadas no bot:\n\n"
+                    f"> 🔑 **Chave PIX:** `{chave}`\n"
+                    f"> 👤 **Titular:** `{titular}`\n"
+                    f"> 📋 **Copia e Cola:** `{copia_cola if copia_cola else 'Não informado'}`"
+                ),
+                color=0x820AD1
+            )
+            embed.set_footer(text="🌑 VOID Store • Configuração PIX Nubank")
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        else:
+            await interaction.followup.send(
+                "❌ Ocorreu um erro ao guardar as configurações do PIX no banco de dados.",
+                ephemeral=True
+            )
 
-    @app_commands.command(name="pix-gerar", description="💳 Gera cobrança PIX para o cliente")
-    @app_commands.describe(
-        valor="Valor a cobrar (ex: 29.90)",
-        cliente="O membro que vai pagar",
-        descricao="Descrição do serviço (opcional)"
+    @app_commands.command(
+        name="pix-gerar",
+        description="💳 Exibe as informações e a chave PIX para o cliente realizar o pagamento"
     )
-    async def pix_gerar(
-        self,
-        interaction: discord.Interaction,
-        valor: float,
-        cliente: discord.Member,
-        descricao: Optional[str] = None
-    ):
-        if not await PermissionChecker.check_interaction_permissions(interaction, require_staff=True):
-            return
+    async def pix_gerar(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=False)
 
-        pix = await self._get_pix()
+        config = await self._obter_config_pix()
 
-        if not pix["key"]:
-            await interaction.response.send_message(
-                "❌ **PIX não configurado!**\n"
-                "Use `/pix-configurar chave:... nome:... cidade:... banco:...` primeiro.",
+        if not config:
+            await interaction.followup.send(
+                "⚠️ **O PIX ainda não foi configurado pela administração!**\n"
+                "Usa o comando `/pix-configurar` para guardar os dados da conta Nubank.",
                 ephemeral=True
             )
             return
 
-        if valor <= 0:
-            await interaction.response.send_message(
-                "❌ O valor deve ser maior que R$ 0,00.", ephemeral=True
-            )
-            return
-
-        txid = self._txid()
+        # Trata o formato de retorno do banco de dados (dict ou tuple)
+        if isinstance(config, dict):
+            chave = config.get("chave_pix")
+            titular = config.get("titular")
+            copia_cola = config.get("copia_cola", "")
+        else:
+            chave, titular, copia_cola = config[0], config[1], config[2]
 
         embed = discord.Embed(
-            title="💳 Pagamento via PIX",
-            description=f"Olá {cliente.mention}! Segue abaixo os dados para pagamento:",
-            color=0x00c853,
-            timestamp=discord.utils.utcnow()
-        )
-
-        embed.add_field(
-            name="🔑 Chave PIX (Copia e Cola)",
-            value=f"```{pix['key']}```",
-            inline=False
-        )
-
-        embed.add_field(
-            name="💰 Valor Exato",
-            value=f"`R$ {valor:.2f}`",
-            inline=True
-        )
-
-        embed.add_field(
-            name="🆔 ID do Pagamento",
-            value=f"`{txid}`",
-            inline=True
-        )
-
-        embed.add_field(
-            name="👤 Recebedor",
-            value=f"{pix['name']} — {pix['bank']}",
-            inline=True
-        )
-
-        embed.add_field(
-            name="📱 Como pagar",
-            value=(
-                "1. Abra o app do seu banco\n"
-                "2. Vá em **PIX → Copia e Cola**\n"
-                f"3. Cole: `{pix['key']}`\n"
-                f"4. Confirme o valor: **R$ {valor:.2f}**\n"
-                "5. Pague e envie o **comprovante aqui**"
+            title="💳 PAGAMENTO VIA NUBANK (PIX)",
+            description=(
+                "Para concluir a tua compra, realiza o pagamento via PIX utilizando os dados abaixo:\n\n"
+                f"> 🔑 **Chave PIX:** `{chave}`\n"
+                f"> 👤 **Titular:** `{titular}`\n"
+                "> 🏦 **Banco:** Nu Pagamentos S.A. (Nubank)\n\n"
+                "📌 **Instruções:**\n"
+                "1. Realiza a transferência no valor do teu pedido.\n"
+                "2. Envia o **comprovativo de pagamento** neste canal.\n"
+                "3. Aguarda que a nossa equipa confirme e entregue o teu produto!"
             ),
-            inline=False
+            color=0x820AD1
         )
 
-        embed.add_field(
-            name="📦 Serviço",
-            value=descricao or "Serviço VOID Store",
-            inline=False
-        )
-
-        embed.set_footer(text=f"🌑 VOID Store | ID: {txid}")
-
-        await interaction.response.send_message(embed=embed)
-
-        await self.db.create_log(
-            "pix", interaction.user.id, "generated",
-            f"TXID: {txid} | Amount: {valor} | Client: {cliente.id}"
-        )
-
-        logger.info(f"PIX generated: R${valor} | TXID: {txid} | For: {cliente}")
-
-    @app_commands.command(name="pix-confirmar", description="✅ Confirma pagamento PIX recebido")
-    @app_commands.describe(
-        cliente="Quem pagou",
-        valor="Valor que foi pago",
-        txid="ID do pagamento (opcional)"
-    )
-    async def pix_confirmar(
-        self,
-        interaction: discord.Interaction,
-        cliente: discord.Member,
-        valor: float,
-        txid: Optional[str] = None
-    ):
-        if not await PermissionChecker.check_interaction_permissions(interaction, require_staff=True):
-            return
-
-        await interaction.response.defer()
-
-        user = await self.db.get_user(cliente.id)
-        if not user:
-            await self.db.create_user(cliente.id, str(cliente))
-
-        await self.db.update_user_spent(cliente.id, valor)
-
-        roles_cog = self.bot.get_cog("Roles")
-        novo_tier = None
-        if roles_cog:
-            novo_tier = await roles_cog.check_user_tier(cliente)
-
-        updated = await self.db.get_user(cliente.id)
-
-        embed = VoidEmbeds.success(
-            "Pagamento Confirmado! ✅",
-            f"💰 **Valor:** {format_currency(valor)}\n"
-            f"👤 **Cliente:** {cliente.mention}\n"
-            f"🆔 **TXID:** `{txid or 'N/A'}`\n"
-            f"✅ **Confirmado por:** {interaction.user.mention}\n"
-            f"📊 **Total acumulado:** {format_currency(updated.total_spent)}"
-        )
-
-        if novo_tier:
+        if copia_cola and copia_cola.strip():
             embed.add_field(
-                name="🎉 Novo Cargo!",
-                value=f"Cliente atingiu o nível **{novo_tier}**!",
+                name="📋 PIX Copia e Cola",
+                value=f"```\n{copia_cola}\n```",
                 inline=False
             )
 
+        embed.set_thumbnail(url="https://i.imgur.com/39A8E7n.png")  # Ícone roxo/estilizado
+        embed.set_footer(text="🌑 VOID Store • Aguardando comprovativo de pagamento")
+
         await interaction.followup.send(embed=embed)
-
-        try:
-            dm = VoidEmbeds.success(
-                "Pagamento Confirmado! ✅",
-                f"Seu pagamento de **{format_currency(valor)}** foi confirmado!\n"
-                f"Obrigado pela confiança na VOID Store! 🌑"
-            )
-            await cliente.send(embed=dm)
-        except discord.Forbidden:
-            pass
-
-        await self.db.create_log(
-            "pix", interaction.user.id, "confirmed",
-            f"TXID: {txid} | Amount: {valor} | Client: {cliente.id}"
-        )
-
-    @app_commands.command(name="pix-info", description="ℹ️ Mostra sua chave PIX configurada")
-    async def pix_info(self, interaction: discord.Interaction):
-        if not await PermissionChecker.check_interaction_permissions(interaction, require_admin=True):
-            return
-
-        pix = await self._get_pix()
-
-        if not pix["key"]:
-            await interaction.response.send_message(
-                "⚠️ PIX ainda não configurado.\nUse `/pix-configurar`.",
-                ephemeral=True
-            )
-            return
-
-        embed = discord.Embed(title="💳 PIX Configurado", color=0x000000)
-        embed.add_field(name="🔑 Chave",  value=f"`{pix['key']}`",  inline=False)
-        embed.add_field(name="👤 Titular", value=pix["name"],         inline=True)
-        embed.add_field(name="🏙️ Cidade", value=pix["city"],         inline=True)
-        embed.add_field(name="🏦 Banco",   value=pix["bank"],         inline=True)
-        embed.set_footer(text="🌑 VOID Store | Visível apenas para admins")
-
-        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):

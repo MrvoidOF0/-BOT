@@ -94,6 +94,7 @@ class VoidBot(commands.Bot):
             "orders",
             "shop",
             "services",
+            "gamepass",             # 🎮 Painel de Game Passes (Novo)
             "stock_display",
             "pix",
             "vip_booster_panels",   # Painéis VIP / Booster

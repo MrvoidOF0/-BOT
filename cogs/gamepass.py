@@ -1,6 +1,6 @@
 """
 🌑 VOID Store Bot - Cog de Painel de Game Passes
-Painel de seleção dinâmica via Select Menu (Discord.py UI)
+Painel interativo via Select Menu para consulta de Game Passes do Blox Fruits.
 """
 
 import discord
@@ -136,7 +136,6 @@ class GamepassSelect(discord.ui.Select):
             await interaction.response.send_message("❌ Game Pass não encontrada.", ephemeral=True)
             return
 
-        # Embed detalhado da Game Pass selecionada (Visual Dark VOID)
         embed_detalhe = discord.Embed(
             title=f"{gp_info['emoji']} {gp_info['nome']} | VOID Store",
             description=(
@@ -147,7 +146,7 @@ class GamepassSelect(discord.ui.Select):
                 f"📌 **Como realizar a compra?**\n"
                 f"Para adquirir esta Game Pass, **abra um ticket de atendimento** em nosso servidor e informe o item desejado aos nossos atendentes!"
             ),
-            color=0x2B2D31  # Preto/Cinza escuro da identidade VOID
+            color=0x2B2D31
         )
 
         embed_detalhe.set_footer(
@@ -155,7 +154,6 @@ class GamepassSelect(discord.ui.Select):
             icon_url=interaction.guild.icon.url if interaction.guild and interaction.guild.icon else None
         )
 
-        # Atualiza a mensagem mantendo o mesmo Select Menu interativo
         await interaction.response.edit_message(embed=embed_detalhe, view=self.view)
 
 
@@ -198,7 +196,7 @@ class Gamepass(commands.Cog):
                 "⚡ **Entrega rápida**\n"
                 "🎟️ **Suporte por ticket**"
             ),
-            color=0x2B2D31  # Estilo limpo em tom cinza/preto escuro do Discord
+            color=0x2B2D31
         )
 
         embed_main.set_footer(
@@ -208,7 +206,6 @@ class Gamepass(commands.Cog):
 
         view = GamepassView()
 
-        # Responde ao administrador confirmando o envio e publica o painel público no canal
         await interaction.channel.send(embed=embed_main, view=view)
         await interaction.response.send_message("✅ Painel de Game Passes publicado com sucesso!", ephemeral=True)
 

@@ -1,6 +1,6 @@
 """
 🌑 VOID Store Bot - Cog de Atendimento e Gerenciamento de Serviços/Tickets
-Painéis dedicados para V4, Farm de Frutas, Leveis, Money e Suporte Geral.
+Painéis dedicados para Blox Fruits com tabelas de valores e suporte completo.
 """
 
 import discord
@@ -18,73 +18,103 @@ logger = setup_logger("Services")
 
 SERVICOS_CONFIG = {
     "v4": {
-        "titulo": "🌑 VOID STORE | RAÇA V4",
+        "titulo": "🌑 VOID Store | ⚡ Desbloqueio V4 & Gears",
         "descricao": (
-            "⚔️ **SERVIÇO DE DESPERTAR RAÇA V4**\n\n"
-            "Desperte o poder máximo da sua raça com total segurança e rapidez!\n\n"
-            "> 🌌 **Engrenagens & Trial V4**\n"
-            "> ⚡ **Treino de Habilidade**\n"
-            "> 👑 **Full V4 Garantida**\n\n"
-            "🛒 *Clique no botão abaixo para abrir seu atendimento e consultar os valores!*"
+            "Obtenha os melhores pacotes com a maior rapidez e segurança do mercado.\n\n"
+            "📊 **Tabela de Valores**\n"
+            "> 🔹 Gear 1 ➔ **R$ 8.00**\n"
+            "> 🔹 Gear 2 ➔ **R$ 8.00**\n"
+            "> 🔹 Gear 3 ➔ **R$ 10.00**\n"
+            "> 🔹 Gear 4 ➔ **R$ 12.00**\n"
+            "> 👑 V4 Completa ➔ **R$ 30.00**\n\n"
+            "❓ **Como comprar?**\n"
+            "Clique no botão abaixo correspondente ao pacote desejado para abrir um canal de compra exclusivo."
         ),
         "cor": 0x9333EA,  # Roxo
         "emoji": "⚡",
-        "label": "Comprar Raça V4"
+        "label": "Comprar V4 / Gears"
+    },
+    "level": {
+        "titulo": "🌑 VOID Store | 📈 Farm de Level",
+        "descricao": (
+            "Obtenha os melhores pacotes com a maior rapidez e segurança do mercado.\n\n"
+            "📊 **Tabela de Valores**\n"
+            "> 🔹 +100 níveis ➔ **R$ 2.00**\n"
+            "> 🔹 +300 níveis ➔ **R$ 5.00**\n"
+            "> 🔹 +500 níveis ➔ **R$ 8.00**\n"
+            "> 🔹 +1.000 níveis ➔ **R$ 14.00**\n"
+            "> 👑 Level Máximo ➔ **R$ 22.00**\n\n"
+            "❓ **Como comprar?**\n"
+            "Clique no botão abaixo correspondente ao pacote desejado para abrir um canal de compra exclusivo."
+        ),
+        "cor": 0x3B82F6,  # Azul
+        "emoji": "📈",
+        "label": "Comprar Farm de Level"
+    },
+    "materiais": {
+        "titulo": "🌑 VOID Store | 📦 Farm de Materiais",
+        "descricao": (
+            "Obtenha os melhores pacotes com a maior rapidez e segurança do mercado.\n\n"
+            "📊 **Tabela de Valores**\n"
+            "> 🔹 Comuns 100x ➔ **R$ 2.00**\n"
+            "> 🔹 Incomuns 100x ➔ **R$ 3.00**\n"
+            "> 🔹 Raros 100x ➔ **R$ 5.00**\n"
+            "> 🔹 Especiais 100x ➔ **R$ 7.00**\n\n"
+            "❓ **Como comprar?**\n"
+            "Clique no botão abaixo correspondente ao pacote desejado para abrir um canal de compra exclusivo."
+        ),
+        "cor": 0x10B981,  # Verde
+        "emoji": "📦",
+        "label": "Comprar Materiais"
+    },
+    "money": {
+        "titulo": "🌑 VOID Store | 💰 Farm de Money (Beli)",
+        "descricao": (
+            "Obtenha os melhores pacotes com a maior rapidez e segurança do mercado.\n\n"
+            "📊 **Tabela de Valores**\n"
+            "> 🔹 5M Beli ➔ **R$ 4.00**\n"
+            "> 🔹 10M Beli ➔ **R$ 7.00**\n"
+            "> 🔹 25M Beli ➔ **R$ 15.00**\n"
+            "> 🔹 50M Beli ➔ **R$ 27.00**\n\n"
+            "❓ **Como comprar?**\n"
+            "Clique no botão abaixo correspondente ao pacote desejado para abrir um canal de compra exclusivo."
+        ),
+        "cor": 0xEAB308,  # Amarelo
+        "emoji": "💰",
+        "label": "Comprar Beli"
+    },
+    "fragments": {
+        "titulo": "🌑 VOID Store | 🔮 Farm de Fragments",
+        "descricao": (
+            "Obtenha os melhores pacotes com a maior rapidez e segurança do mercado.\n\n"
+            "📊 **Tabela de Valores**\n"
+            "> 🔹 5.000 Fragments ➔ **R$ 3.00**\n"
+            "> 🔹 10.000 Fragments ➔ **R$ 6.00**\n"
+            "> 🔹 25.000 Fragments ➔ **R$ 13.00**\n"
+            "> 🔹 50.000 Fragments ➔ **R$ 24.00**\n\n"
+            "❓ **Como comprar?**\n"
+            "Clique no botão abaixo correspondente ao pacote desejado para abrir um canal de compra exclusivo."
+        ),
+        "cor": 0x8B5CF6,  # Roxo Claro
+        "emoji": "🔮",
+        "label": "Comprar Fragments"
     },
     "frutas": {
-        "titulo": "🍎 VOID STORE | FARM DE FRUTAS",
+        "titulo": "🌑 VOID Store | 🍎 Farm de Frutas",
         "descricao": (
-            "🍓 **FARM & COLETA DE FRUTAS**\n\n"
-            "Consiga as frutas mais raras do Blox Fruits sem perder tempo!\n\n"
-            "> 📦 **Notificador de Frutas**\n"
-            "> 🌊 **Farm no Mar (Sea Events)**\n"
-            "> 🎲 **Giro Automático de Frutas**\n\n"
-            "🛒 *Clique no botão abaixo para abrir seu atendimento e garantir sua fruta!*"
+            "Obtenha os melhores pacotes com a maior rapidez e segurança do mercado.\n\n"
+            "📊 **Tabela de Valores**\n"
+            "> 🔹 1 hora ➔ **R$ 3.00**\n"
+            "> 🔹 2 horas ➔ **R$ 5.00**\n"
+            "> 🔹 3 horas ➔ **R$ 7.00**\n"
+            "> 🔹 5 horas ➔ **R$ 10.00**\n"
+            "> 🔹 10 horas ➔ **R$ 18.00**\n\n"
+            "❓ **Como comprar?**\n"
+            "Clique no botão abaixo correspondente ao pacote desejado para abrir um canal de compra exclusivo."
         ),
         "cor": 0xEF4444,  # Vermelho
         "emoji": "🍎",
         "label": "Comprar Farm de Frutas"
-    },
-    "level": {
-        "titulo": "⭐ VOID STORE | FARM DE NÍVEIS (LEVEL)",
-        "descricao": (
-            "📈 **UPE SEU PERSONAGEM AO NÍVEL MÁXIMO**\n\n"
-            "Deixe o processo chato de farm conosco e receba sua conta no Level Max rápido!\n\n"
-            "> 🎯 **Level 1 ao 2550 (Max)**\n"
-            "> ⚔️ **Farm por Milhar de Level**\n"
-            "> 🛡️ **Segurança Total na sua Conta**\n\n"
-            "🛒 *Clique no botão abaixo para abrir seu atendimento e fazer um orçamento!*"
-        ),
-        "cor": 0x3B82F6,  # Azul
-        "emoji": "📈",
-        "label": "Comprar Level Max"
-    },
-    "money": {
-        "titulo": "💰 VOID STORE | FARM DE BELI & FRAGMENS",
-        "descricao": (
-            "💎 **FARM DE BELI E FRAGMENTOS**\n\n"
-            "Fique rico no jogo para comprar qualquer estilo de luta ou item!\n\n"
-            "> 💵 **Milhões de Beli**\n"
-            "> 🔮 **Dezenas de Milhares de Fragmentos**\n"
-            "> 🏴‍☠️ **Farm Rápido e Seguro**\n\n"
-            "🛒 *Clique no botão abaixo para abrir seu atendimento!*"
-        ),
-        "cor": 0xEAB308,  # Amarelo / Dourado
-        "emoji": "💰",
-        "label": "Comprar Beli / Fragmentos"
-    },
-    "geral": {
-        "titulo": "🌑 VOID STORE | CENTRAL DE ATENDIMENTO",
-        "descricao": (
-            "🛒 **CENTRAL DE DÚVIDAS E SERVIÇOS GERAIS**\n\n"
-            "Precisa de algo personalizado, tiras dúvidas ou suporte em compras?\n\n"
-            "> 💬 **Atendimento Direto com a Staff**\n"
-            "> 🔒 **Canal 100% Privado**\n\n"
-            "🛒 *Clique no botão abaixo para iniciar o atendimento!*"
-        ),
-        "cor": 0x2B2D31,  # Escuro
-        "emoji": "🛒",
-        "label": "Abrir Atendimento"
     }
 }
 
@@ -94,12 +124,11 @@ SERVICOS_CONFIG = {
 # ====================================
 
 class OpenTicketView(discord.ui.View):
-    """Painel público onde o cliente clica para abrir o atendimento"""
+    """Painel público com botão para criação de ticket"""
 
-    def __init__(self, service_type: str = "geral", label: str = "Abrir Atendimento", emoji: str = "🛒"):
+    def __init__(self, service_type: str = "v4", label: str = "Comprar", emoji: str = "🛒"):
         super().__init__(timeout=None)
         
-        # Cria o botão personalizado de acordo com o serviço
         btn = discord.ui.Button(
             label=label,
             style=discord.ButtonStyle.primary,
@@ -112,25 +141,23 @@ class OpenTicketView(discord.ui.View):
     async def btn_open_ticket(self, interaction: discord.Interaction):
         guild = interaction.guild
         user = interaction.user
-        
-        # Identifica o tipo de serviço através do custom_id
-        custom_id = interaction.data.get("custom_id", "ticket:open:geral")
-        service_type = custom_id.split(":")[-1] if len(custom_id.split(":")) > 2 else "geral"
+
+        custom_id = interaction.data.get("custom_id", "ticket:open:v4")
+        service_type = custom_id.split(":")[-1] if len(custom_id.split(":")) > 2 else "v4"
 
         channel_name = f"🛒-{service_type}-{user.name}".lower().replace(" ", "-")
 
-        # Verifica se o cliente já possui um canal aberto deste tipo
+        # Verifica se o utilizador já tem um canal deste serviço aberto
         existing_channel = discord.utils.get(guild.text_channels, name=channel_name)
         if existing_channel:
             await interaction.response.send_message(
-                f"⚠️ Você já possui um canal deste atendimento aberto: {existing_channel.mention}",
+                f"⚠️ Já possui um canal de atendimento aberto para este serviço: {existing_channel.mention}",
                 ephemeral=True
             )
             return
 
         await interaction.response.defer(ephemeral=True)
 
-        # Configurações de permissão do canal privado
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
             user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True),
@@ -144,22 +171,24 @@ class OpenTicketView(discord.ui.View):
                 reason=f"Atendimento de {service_type.upper()} aberto por {user}"
             )
 
-            service_info = SERVICOS_CONFIG.get(service_type, SERVICOS_CONFIG["geral"])
+            service_info = SERVICOS_CONFIG.get(service_type, SERVICOS_CONFIG["v4"])
 
             embed_ticket = discord.Embed(
-                title=f"🌑 VOID Store | Atendimento - {service_type.upper()}",
+                title=f"Exclusivo • {service_info['titulo']}",
                 description=(
-                    f"Olá {user.mention}, seja bem-vindo ao seu atendimento de **{service_info['titulo']}**!\n\n"
-                    "> 📌 Descreva exatamente os detalhes do serviço que você deseja.\n"
-                    "> 💳 Clique no botão abaixo **`Gerar Pagamento PIX`** para pagar.\n"
-                    "> 🔒 Para encerrar e deletar este canal, clique em **`Encerrar Canal`**."
+                    f"Seu canal de atendimento exclusivo foi aberto! Confira as informações do seu pedido abaixo e aguarde a equipe.\n\n"
+                    f"👤 **Cliente:** {user.mention}\n"
+                    f"📦 **Pacote Selecionado:** {service_info['label']}\n"
+                    f"⚡ **Status:** Aguardando Staff\n\n"
+                    "📝 **Instruções ao Cliente:**\n"
+                    "Informe os detalhes do seu pedido no chat abaixo e clique no botão **Gerar Pagamento PIX** para pagar."
                 ),
                 color=service_info["cor"]
             )
-            embed_ticket.set_footer(text="🌑 VOID Store • Atendimento Seguro")
+            embed_ticket.set_footer(text="VOID Store • Atendimento Seguro e Qualificado")
 
             await channel.send(content=f"{user.mention}", embed=embed_ticket, view=TicketControlView())
-            await interaction.followup.send(f"✅ Seu atendimento foi criado com sucesso: {channel.mention}", ephemeral=True)
+            await interaction.followup.send(f"✅ O seu canal de atendimento foi criado com sucesso: {channel.mention}", ephemeral=True)
 
         except Exception as e:
             logger.error(f"Erro ao criar canal de atendimento para {user}: {e}")
@@ -167,7 +196,7 @@ class OpenTicketView(discord.ui.View):
 
 
 class TicketControlView(discord.ui.View):
-    """View contendo os botões dentro do canal privado do cliente"""
+    """View dos botões dentro do canal privado do cliente"""
 
     def __init__(self):
         super().__init__(timeout=None)
@@ -183,17 +212,17 @@ class TicketControlView(discord.ui.View):
 
         embed_closing = discord.Embed(
             title="🔒 Encerramento de Atendimento",
-            description="Este canal será **excluído** permanentemente em **5 segundos**...",
+            description="Este canal será **excluído** em **5 segundos**...",
             color=0xEF4444
         )
-        embed_closing.set_footer(text="🌑 VOID Store • Canal sendo encerrado")
+        embed_closing.set_footer(text="VOID Store • Canal a encerrar")
         await interaction.followup.send(embed=embed_closing)
 
         await asyncio.sleep(5)
 
         try:
             await interaction.channel.delete(reason=f"Atendimento encerrado por {interaction.user}")
-            logger.info(f"Canal {interaction.channel.name} deletado por {interaction.user}.")
+            logger.info(f"Canal {interaction.channel.name} deletado com sucesso.")
         except Exception as e:
             logger.error(f"Erro ao deletar canal {interaction.channel.name}: {e}")
 
@@ -227,13 +256,12 @@ class Services(commands.Cog):
     async def cog_load(self):
         """Registra as Views no bot ao iniciar"""
         self.bot.add_view(TicketControlView())
-        # Registra handlers genéricos para cada tipo de serviço
         for stype, cfg in SERVICOS_CONFIG.items():
             self.bot.add_view(OpenTicketView(service_type=stype, label=cfg["label"], emoji=cfg["emoji"]))
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
-        """Intercepta os cliques nos botões de abertura de ticket dinâmicos"""
+        """Intercepta os cliques nos botões de abertura de ticket"""
         if interaction.type != discord.InteractionType.component:
             return
 
@@ -248,25 +276,26 @@ class Services(commands.Cog):
 
     @app_commands.command(
         name="setup-atendimento",
-        description="🛒 Publica um painel de atendimento para um serviço específico"
+        description="🛒 Publica o painel de atendimento para o serviço selecionado"
     )
     @app_commands.checks.has_permissions(administrator=True)
     @app_commands.choices(servico=[
-        app_commands.Choice(name="🌌 Raça V4", value="v4"),
-        app_commands.Choice(name="🍎 Farm de Frutas", value="frutas"),
+        app_commands.Choice(name="⚡ Desbloqueio V4 & Gears", value="v4"),
         app_commands.Choice(name="📈 Farm de Level", value="level"),
-        app_commands.Choice(name="💰 Farm de Beli/Money", value="money"),
-        app_commands.Choice(name="🛒 Central Geral / Suporte", value="geral")
+        app_commands.Choice(name="📦 Farm de Materiais", value="materiais"),
+        app_commands.Choice(name="💰 Farm de Money (Beli)", value="money"),
+        app_commands.Choice(name="🔮 Farm de Fragments", value="fragments"),
+        app_commands.Choice(name="🍎 Farm de Frutas", value="frutas")
     ])
     async def setup_atendimento(self, interaction: discord.Interaction, servico: app_commands.Choice[str]):
-        config = SERVICOS_CONFIG.get(servico.value, SERVICOS_CONFIG["geral"])
+        config = SERVICOS_CONFIG.get(servico.value, SERVICOS_CONFIG["v4"])
 
         embed = discord.Embed(
             title=config["titulo"],
             description=config["descricao"],
             color=config["cor"]
         )
-        embed.set_footer(text="🌑 VOID Store • Atendimento Rápido e Garantido")
+        embed.set_footer(text="VOID Store • Atendimento Rápido e Seguro")
 
         view = OpenTicketView(
             service_type=servico.value,
@@ -279,11 +308,11 @@ class Services(commands.Cog):
 
     @app_commands.command(
         name="fechar",
-        description="🔒 Força o fechamento e exclusão do canal de atendimento atual"
+        description="🔒 Força o fechamento e eliminação do canal de atendimento atual"
     )
     @app_commands.checks.has_permissions(administrator=True)
     async def fechar_canal(self, interaction: discord.Interaction):
-        await interaction.response.send_message("🔒 **Encerrando e excluindo este canal em 5 segundos...**")
+        await interaction.response.send_message("🔒 **A encerrar e eliminar este canal em 5 segundos...**")
         await asyncio.sleep(5)
         try:
             await interaction.channel.delete(reason=f"Canal fechado via /fechar por {interaction.user}")

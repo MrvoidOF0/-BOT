@@ -1,6 +1,6 @@
 """
 🌑 VOID Store Bot - Cog de Atendimento e Gerenciamento de Serviços/Tickets
-Painéis dedicados para Blox Fruits com tabelas de valores e suporte completo.
+Atendimento Blox Fruits com categoria fixa e correção de timeout no PIX.
 """
 
 import discord
@@ -10,6 +10,9 @@ import asyncio
 from utils.logger import setup_logger
 
 logger = setup_logger("Services")
+
+# ID DA CATEGORIA ONDE OS CANAIS SERÃO CRIADOS
+CATEGORY_ID = 1551636304989519993
 
 
 # ====================================
@@ -30,7 +33,7 @@ SERVICOS_CONFIG = {
             "❓ **Como comprar?**\n"
             "Clique no botão abaixo correspondente ao pacote desejado para abrir um canal de compra exclusivo."
         ),
-        "cor": 0x9333EA,  # Roxo
+        "cor": 0x9333EA,
         "emoji": "⚡",
         "label": "Comprar V4 / Gears"
     },
@@ -47,7 +50,7 @@ SERVICOS_CONFIG = {
             "❓ **Como comprar?**\n"
             "Clique no botão abaixo correspondente ao pacote desejado para abrir um canal de compra exclusivo."
         ),
-        "cor": 0x3B82F6,  # Azul
+        "cor": 0x3B82F6,
         "emoji": "📈",
         "label": "Comprar Farm de Level"
     },
@@ -63,7 +66,7 @@ SERVICOS_CONFIG = {
             "❓ **Como comprar?**\n"
             "Clique no botão abaixo correspondente ao pacote desejado para abrir um canal de compra exclusivo."
         ),
-        "cor": 0x10B981,  # Verde
+        "cor": 0x10B981,
         "emoji": "📦",
         "label": "Comprar Materiais"
     },
@@ -79,7 +82,7 @@ SERVICOS_CONFIG = {
             "❓ **Como comprar?**\n"
             "Clique no botão abaixo correspondente ao pacote desejado para abrir um canal de compra exclusivo."
         ),
-        "cor": 0xEAB308,  # Amarelo
+        "cor": 0xEAB308,
         "emoji": "💰",
         "label": "Comprar Beli"
     },
@@ -95,7 +98,7 @@ SERVICOS_CONFIG = {
             "❓ **Como comprar?**\n"
             "Clique no botão abaixo correspondente ao pacote desejado para abrir um canal de compra exclusivo."
         ),
-        "cor": 0x8B5CF6,  # Roxo Claro
+        "cor": 0x8B5CF6,
         "emoji": "🔮",
         "label": "Comprar Fragments"
     },
@@ -112,7 +115,7 @@ SERVICOS_CONFIG = {
             "❓ **Como comprar?**\n"
             "Clique no botão abaixo correspondente ao pacote desejado para abrir um canal de compra exclusivo."
         ),
-        "cor": 0xEF4444,  # Vermelho
+        "cor": 0xEF4444,
         "emoji": "🍎",
         "label": "Comprar Farm de Frutas"
     }
@@ -147,16 +150,20 @@ class OpenTicketView(discord.ui.View):
 
         channel_name = f"🛒-{service_type}-{user.name}".lower().replace(" ", "-")
 
-        # Verifica se o utilizador já tem um canal deste serviço aberto
         existing_channel = discord.utils.get(guild.text_channels, name=channel_name)
         if existing_channel:
             await interaction.response.send_message(
-                f"⚠️ Já possui um canal de atendimento aberto para este serviço: {existing_channel.mention}",
+                f"⚠️ Você já possui um canal de atendimento aberto para este serviço: {existing_channel.mention}",
                 ephemeral=True
             )
             return
 
         await interaction.response.defer(ephemeral=True)
+
+        # Busca a categoria pelo ID fornecido
+        category = guild.get_channel(CATEGORY_ID)
+        if not isinstance(category, discord.CategoryChannel):
+            category = None  # Se a categoria não for encontrada, cria fora dela sem travar
 
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
@@ -165,8 +172,10 @@ class OpenTicketView(discord.ui.View):
         }
 
         try:
+            # Cria o canal de atendimento DENTRO da categoria especificada
             channel = await guild.create_text_channel(
                 name=channel_name,
+                category=category,
                 overwrites=overwrites,
                 reason=f"Atendimento de {service_type.upper()} aberto por {user}"
             )
@@ -188,7 +197,7 @@ class OpenTicketView(discord.ui.View):
             embed_ticket.set_footer(text="VOID Store • Atendimento Seguro e Qualificado")
 
             await channel.send(content=f"{user.mention}", embed=embed_ticket, view=TicketControlView())
-            await interaction.followup.send(f"✅ O seu canal de atendimento foi criado com sucesso: {channel.mention}", ephemeral=True)
+            await interaction.followup.send(f"✅ Seu canal de atendimento foi criado com sucesso: {channel.mention}", ephemeral=True)
 
         except Exception as e:
             logger.error(f"Erro ao criar canal de atendimento para {user}: {e}")
@@ -215,7 +224,7 @@ class TicketControlView(discord.ui.View):
             description="Este canal será **excluído** em **5 segundos**...",
             color=0xEF4444
         )
-        embed_closing.set_footer(text="VOID Store • Canal a encerrar")
+        embed_closing.set_footer(text="VOID Store • Canal sendo encerrado")
         await interaction.followup.send(embed=embed_closing)
 
         await asyncio.sleep(5)
@@ -233,14 +242,17 @@ class TicketControlView(discord.ui.View):
         custom_id="ticket:gerar_pix"
     )
     async def btn_pix(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Tenta buscar a cog do PIX para executar
         cog_pix = interaction.client.get_cog("Pix")
         if cog_pix:
             await cog_pix.pix_gerar(interaction)
         else:
-            await interaction.response.send_message(
-                "❌ O módulo de PIX não está ativo no momento.",
-                ephemeral=True
-            )
+            # Se a cog do PIX não estiver carregada, responde para não estourar timeout
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "❌ O módulo do PIX não está ativo. Configure com `/pix-configurar` ou verifique se a cog `pix.py` foi carregada.",
+                    ephemeral=True
+                )
 
 
 # ====================================
@@ -308,11 +320,11 @@ class Services(commands.Cog):
 
     @app_commands.command(
         name="fechar",
-        description="🔒 Força o fechamento e eliminação do canal de atendimento atual"
+        description="🔒 Força o fechamento e exclusão do canal de atendimento atual"
     )
     @app_commands.checks.has_permissions(administrator=True)
     async def fechar_canal(self, interaction: discord.Interaction):
-        await interaction.response.send_message("🔒 **A encerrar e eliminar este canal em 5 segundos...**")
+        await interaction.response.send_message("🔒 **Encerrando e excluindo este canal em 5 segundos...**")
         await asyncio.sleep(5)
         try:
             await interaction.channel.delete(reason=f"Canal fechado via /fechar por {interaction.user}")

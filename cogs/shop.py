@@ -223,21 +223,20 @@ class Shop(commands.Cog):
             title="🌑 𝐕𝐎𝐈𝐃 𝐒𝐭𝐨𝐫𝐞 — Loja Oficial & Atendimento",
             description=(
                 "Seja bem-vindo à **VOID Store**! Seu lugar ideal para adquirir serviços e itens para **Blox Fruits** com total segurança, rapidez e o melhor preço do mercado.\n\n"
-                "═══════════════════════════\n"
                 "📋 **TABELA DE PREÇOS & SERVIÇOS**\n"
-                "═══════════════════════════\n"
+                " \n"
                 "⚙️ **Engrenagem V4** ➔ `R$ 11,90`\n"
                 "🍎 **Frutas (Estoque)** ➔ `A partir de R$ 7,90`\n"
                 "⬆️ **Up de Levels** ➔ `R$ 13,90`\n"
                 "💎 **Fragmentos** ➔ `R$ 12,00`\n"
                 "💰 **Money / Beli** ➔ `R$ 12,90`\n"
                 "📦 **Farm de Materiais** ➔ `R$ 7,00`\n\n"
-                "═══════════════════════════\n"
+                " \n"
                 "🚀 **COMO REALIZAR O SEU PEDIDO?**\n"
                 "1️⃣ **Selecione o serviço** desejado no menu suspenso abaixo.\n"
                 "2️⃣ Uma **categoria e canal 100% privados** serão criados automaticamente.\n"
                 "3️⃣ Siga as instruções do chat para efetuar o pagamento via **PIX**.\n"
-                "═══════════════════════════"
+                
             ),
             color=discord.Color.from_rgb(15, 15, 15)
         )

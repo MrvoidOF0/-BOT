@@ -7,9 +7,6 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 import asyncio
-from utils.logger import setup_logger
-
-logger = setup_logger("Contas")
 
 # ID da categoria onde os canais de atendimento serão criados
 CATEGORY_ID = 1551636304989519993
@@ -46,9 +43,8 @@ class TicketCloseView(discord.ui.View):
 
         try:
             await interaction.channel.delete(reason=f"Atendimento de conta encerrado por {interaction.user}")
-            logger.info(f"Canal de conta {interaction.channel.name} deletado com sucesso.")
         except Exception as e:
-            logger.error(f"Erro ao deletar canal {interaction.channel.name}: {e}")
+            print(f"Erro ao deletar canal {interaction.channel.name}: {e}")
 
     @discord.ui.button(
         label="Gerar Pagamento PIX",
@@ -57,16 +53,17 @@ class TicketCloseView(discord.ui.View):
         custom_id="ticket:contas_pix"
     )
     async def btn_pix(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Chama a cog do PIX
+        # Tenta usar a cog do PIX caso exista
         cog_pix = interaction.client.get_cog("Pix")
-        if cog_pix:
+        if cog_pix and hasattr(cog_pix, "pix_gerar"):
             await cog_pix.pix_gerar(interaction)
         else:
-            if not interaction.response.is_done():
-                await interaction.response.send_message(
-                    "❌ O módulo do PIX não está ativo. Use `/pix-configurar` para ativá-lo.",
-                    ephemeral=True
-                )
+            embed_pix = discord.Embed(
+                title="💳 Chave PIX | VOID Store",
+                description="Envie o valor correspondente para a chave Pix abaixo e mande o comprovante neste canal:\n\n`pix@voidstore.com`",
+                color=0x22C55E
+            )
+            await interaction.response.send_message(embed=embed_pix, ephemeral=True)
 
 
 class ContasPublicView(discord.ui.View):
@@ -128,7 +125,7 @@ class ContasPublicView(discord.ui.View):
                     f"📦 **Produto:** Conta Blox Fruits Aleatória (Random)\n"
                     f"⚡ **Status:** Aguardando Pagamento / Staff\n\n"
                     "📝 **Instruções:**\n"
-                    "1. Clique no botão **Gerar Pagamento PIX** para pagar via PIX instantâneo.\n"
+                    "1. Clique no botão **Gerar Pagamento PIX** para obter os dados de pagamento.\n"
                     "2. Envie o comprovante aqui no chat se necessário.\n"
                     "3. Após a confirmação, os dados da conta serão entregues por um atendente.\n"
                     "4. Para cancelar ou fechar este chat, clique em **Encerrar Canal**."
@@ -142,7 +139,7 @@ class ContasPublicView(discord.ui.View):
             await interaction.followup.send(f"✅ Seu canal de compra foi criado: {channel.mention}", ephemeral=True)
 
         except Exception as e:
-            logger.error(f"Erro ao criar canal de compra de conta para {user}: {e}")
+            print(f"Erro ao criar canal de compra de conta para {user}: {e}")
             await interaction.followup.send("❌ Não foi possível criar o canal. Verifique as permissões do bot.", ephemeral=True)
 
 

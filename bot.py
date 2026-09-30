@@ -106,6 +106,7 @@ class VoidBot(commands.Bot):
             "inventory",
             "moderation",
             "logs",
+            "contas",
             "sheets",
             "setup",
             "championship",         # 🏆 Campeonato PvP VOID Store
